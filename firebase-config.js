@@ -16,5 +16,5 @@ window.FIREBASE_CONFIG={
 window.FIREBASE_FOTOS=false;
 // Leer facturas con IA (Gemini mediante Firebase AI Logic). En España exige el plan Blaze:
 // activa «Firebase AI Logic» en la consola y pon true.
-window.FIREBASE_IA=false;
+window.FIREBASE_IA=true;
 window.FIREBASE_IA_MODELO='gemini-3.8-flash';
