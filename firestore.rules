@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Solo estas cuentas pueden ver y cambiar los datos de la carnicería.
+    // Pon aquí los correos con los que entráis (en minúsculas).
+    function permitido() {
+      return request.auth != null
+        && request.auth.token.email in ['TU_CORREO@ejemplo.com'];
+    }
+    match /negocio/{resto=**} {
+      allow read, write: if permitido();
+    }
+  }
+}
