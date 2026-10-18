@@ -51,6 +51,24 @@
   function botonSalir(auth,A,user){cuandoListo(()=>{estilos();const s=document.getElementById('sync');if(!s||document.getElementById('nb-salir'))return;
     const b=document.createElement('button');b.type='button';b.id='nb-salir';b.className='nb-salir';b.textContent='Salir ('+(user.email||'')+')';
     b.onclick=async()=>{await A.signOut(auth);location.reload()};s.insertAdjacentElement('afterend',b)})}
+  // traer una copia (archivo .json) con datos de antes: {"app":"inventario","colecciones":{"productos":{"id":{...}}}}
+  function botonImportar(F,fs){cuandoListo(()=>{const s=document.getElementById('nb-salir');if(!s||document.getElementById('nb-imp'))return;
+    const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.hidden=true;
+    const b=document.createElement('button');b.type='button';b.id='nb-imp';b.className='nb-salir';b.textContent='Importar copia';b.onclick=()=>inp.click();
+    inp.onchange=async()=>{const f=inp.files[0];inp.value='';if(!f)return;
+      let c;try{c=JSON.parse(await f.text())}catch(e){alert('Ese archivo no es una copia válida.');return}
+      if(!c||!c.colecciones||typeof c.colecciones!=='object'){alert('Ese archivo no es una copia válida.');return}
+      if(c.app&&c.app!==app){alert('Esta copia es de «'+c.app+'». Ábrela desde esa página.');return}
+      const ops=[];for(const[col,docs]of Object.entries(c.colecciones))for(const[id,d]of Object.entries(docs||{}))if(d&&typeof d==='object')ops.push([col,id,d]);
+      const res=Object.entries(c.colecciones).map(([k,v])=>Object.keys(v||{}).length+' '+k).join(', ');
+      if(!ops.length){alert('La copia está vacía.');return}
+      if(!confirm('Se van a guardar '+res+'. Lo que tenga el mismo nombre interno se sustituye. ¿Seguir?'))return;
+      b.disabled=true;b.textContent='Importando…';
+      try{for(let i=0;i<ops.length;i+=400){const w=F.writeBatch(fs);ops.slice(i,i+400).forEach(([col,id,d])=>w.set(F.doc(fs,RAIZ+col,id),d));await w.commit()}
+        alert('Copia importada: '+res+'.')}
+      catch(e){avisar(e);alert('No se pudo importar. Comprueba la conexión y vuelve a probar.')}
+      b.disabled=false;b.textContent='Importar copia'};
+    s.insertAdjacentElement('afterend',b);b.insertAdjacentElement('afterend',inp)})}
 
   // ---------- arranque de Firebase ----------
   let fallo=null;
@@ -62,7 +80,7 @@
     let fs;try{fs=F.initializeFirestore(fb,{ignoreUndefinedProperties:true,localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()})})}
     catch(e){fs=F.initializeFirestore(fb,{ignoreUndefinedProperties:true})}
     const user=await new Promise(ok=>{let pedido=false;A.onAuthStateChanged(auth,u=>{if(u){quitarLogin();ok(u)}else if(!pedido){pedido=true;pedirLogin(auth,A)}else location.reload()})});
-    botonSalir(auth,A,user);
+    botonSalir(auth,A,user);botonImportar(F,fs);
     F.setDoc(F.doc(fs,USUARIOS,user.uid),{nombre:(user.displayName||user.email||'').split('@')[0],email:user.email||''},{merge:true}).catch(()=>{});
     return{F,fs,user};
   })();
