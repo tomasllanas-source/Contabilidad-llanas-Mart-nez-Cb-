@@ -818,9 +818,13 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
       if(!total&&bases.length)total=r2(bases.reduce((s,b)=>s+(+b.base)*(1+(+b.iva_pct||0)/100),0));
       $('g-total').value=fmtIn(r2(total));
       const tipos=[...new Set(bases.map(b=>+b.iva_pct||0))];
+      const porTipo={};bases.forEach(b=>{const t=+b.iva_pct||0;porTipo[t]=r2((porTipo[t]||0)+(+b.base))});
+      const sumaMix=r2(Object.entries(porTipo).reduce((a,[t,b])=>a+r2(b)+r2(b*t/100),0));
       if(tipos.length===1&&['10','21','4','0'].includes(String(tipos[0]))){$('g-pct').value=tipos[0];baseFoto=null}
+      // varios tipos de IVA: se rellenan las bases de cada tipo (si cuadran con el total de la factura)
+      else if(tipos.length>1&&tipos.every(t=>TIPOS_IVA.includes(t))&&Math.abs(sumaMix-r2(total))<0.06){baseFoto=null;setMix(true);TIPOS_IVA.forEach(t=>$('g-b'+t).value=porTipo[t]?fmtIn(porTipo[t]):'')}
       else if(bases.length&&sb){baseFoto={total:r2(total),base:sb}}
-      calcGasto();st.textContent='Listo. Revisa los datos antes de guardar'+(tipos.length>1?' (la factura lleva varios tipos de IVA; ya están sumados).':'.');
+      calcGasto();st.textContent='Listo. Revisa los datos antes de guardar'+($('g-mix').checked?' (la factura lleva varios tipos de IVA; he puesto la base de cada uno).':tipos.length>1?' (la factura lleva varios tipos de IVA; ya están sumados).':'.');
     }catch(err){st.className='fstat err';st.textContent=err&&err.code==='rate_limited'?'Demasiadas lecturas seguidas. Espera un minuto y vuelve a probar.':'No he podido leer esta foto. Prueba con otra más nítida o rellena los datos a mano.'}
   });
 

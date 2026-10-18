@@ -106,6 +106,7 @@
   // ---------- fotos dentro de la base de datos (plan gratis, sin Storage) ----------
   // Cada foto se guarda en negocio/<página>/fotos/<id>, partida en trozos de texto que caben en un documento.
   // La página la pide con el id "fs:<id>"; aquí se descarga y se convierte en una dirección que el navegador puede mostrar.
+  const aTexto=b=>new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=ko;r.readAsDataURL(b)});
   const TROZO=700000,urls=new Map(),cargando=new Map();
   const marca=id=>"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' data-f='"+encodeURIComponent(id)+"'/%3E";
   let leerFoto=null;
@@ -127,7 +128,6 @@
   });
   function fotosEnBase({F,fs}){
     const col=RAIZ+'fotos';
-    const aTexto=b=>new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=ko;r.readAsDataURL(b)});
     leerFoto=async id=>{const k=id.replace(/^fs:/,'');const m=await F.getDoc(F.doc(fs,col,k));if(!m.exists())throw new Error('no encontrada');
       const{tipo,partes}=m.data();const ts=await Promise.all(Array.from({length:partes},(_,i)=>F.getDoc(F.doc(fs,col+'/'+k+'/partes',String(i)))));
       const bin=atob(ts.map(t=>t.data().d).join(''));const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
@@ -160,6 +160,21 @@ const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
           catch(e){avisar(e);throw Object.assign(new Error(e.message),{code:e.code==='storage/quota-exceeded'?'quota_or_state':e.code})}
           return{id:await S.getDownloadURL(r)}},
         delete:async id=>{await S.deleteObject(S.ref(st,id))}};
+    }
+    if(nombre==='sample'){
+      // leer facturas con Gemini (Firebase AI Logic); en España exige el plan Blaze, se activa en firebase-config.js
+      if(!window.FIREBASE_IA)throw Object.assign(new Error('IA no activada'),{code:'not_granted'});
+      const x=await listo;const AI=await import(U+'firebase-ai.js');
+      const ai=AI.getAI(x.fb,{backend:new AI.GoogleAIBackend()});
+      const modelo=AI.getGenerativeModel(ai,{model:window.FIREBASE_IA_MODELO||'gemini-3.8-flash',generationConfig:{responseMimeType:'application/json'}});
+      const COD=e=>/429|quota|exhausted/i.test(String(e&&e.message))?'rate_limited':/safety|blocked/i.test(String(e&&e.message))?'refused':'error';
+      return{limits:async()=>({images:{maxCount:5}}),
+        async json(prompt,o={}){
+          const partes=[{text:prompt}];for(const im of o.images||[])partes.push({inlineData:{mimeType:im.type||'image/jpeg',data:await aTexto(im)}});
+          const corte=new Promise((_,ko)=>{if(o.signal){if(o.signal.aborted)ko({code:'cancelled'});o.signal.addEventListener('abort',()=>ko({code:'cancelled'}))}});
+          let r;try{r=await Promise.race([modelo.generateContent(partes),corte])}catch(e){if(e&&e.code==='cancelled')throw e;console.error(e);throw Object.assign(new Error(e&&e.message),{code:COD(e)})}
+          const t=String(r.response.text()||'').trim().replace(/^```(?:json)?\s*|\s*```$/g,'');
+          try{return JSON.parse(t)}catch(e){throw Object.assign(new Error('JSON'),{code:'invalid_json'})}}};
     }
     if(nombre==='user'){const x=await listo;const{F,fs,user}=x;return{id:async()=>user.uid,
       profiles:async ids=>{const o={};await Promise.all(ids.map(async id=>{try{const s=await F.getDoc(F.doc(fs,USUARIOS,id));if(s.exists())o[id]={name:s.data().nombre}}catch(e){}}));return o}}}
