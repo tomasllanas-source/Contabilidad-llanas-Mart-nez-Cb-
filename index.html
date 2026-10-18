@@ -176,10 +176,12 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .plazo{font-size:12px;font-weight:600;color:var(--muted);text-align:center}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--surface);padding:10px 16px;border-radius:20px;font-weight:600;font-size:14px;max-width:calc(100% - 32px);text-align:center;z-index:5}
 @media (prefers-reduced-motion:no-preference){.cb .bar i{transition:width .3s ease}}
+.paginas{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;font-weight:600}.paginas a{color:var(--muted);text-decoration:none}.paginas a[aria-current]{color:var(--fg);text-decoration:underline}
 </style>
 
 <div class="wrap">
   <header>
+    <nav class="paginas" aria-label="Páginas"><a href="index.html" aria-current="page">Contabilidad</a><a href="calculadora.html">Calculadora PVP</a><a href="inventario.html">Inventario</a></nav>
     <h1>Contabilidad · Carnicería</h1>
     <p>Apunta la caja de cada día, los gastos y los cargos del banco. Ves lo que entra, lo que sale, lo que te queda y el IVA de cada trimestre.</p>
     <span class="sync" id="sync">Conectando…</span>

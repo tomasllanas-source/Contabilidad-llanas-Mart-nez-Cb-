@@ -1,0 +1,971 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Calculadora PVP Carnicería</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: una columna tipo mostrador; pestañas Comprado / Elaborado / Ingredientes, formulario, resumen de producción, ticket de precio y lista de productos guardados */
+:root{
+  --bg:#eef1f0; --surface:#ffffff; --fg:#1d2422; --muted:#5b6662; --line:#d5dcd9;
+  --accent:#8c1c2b; --accent-ink:#ffffff; --accent-soft:#f6e3e5;
+  --elab:#2f5d4a; --elab-ink:#ffffff; --elab-soft:#dfece5;
+  --good:#2f6b3e; --warn:#a4561a;
+  --c1:#8c1c2b; --c2:#c98a3a; --c3:#7d8c87;
+  --tile:rgba(29,36,34,.045);
+  --f-display:"Alfa Slab One", Rockwell, "Roboto Slab", Georgia, serif;
+  --f-body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-num:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151a19; --surface:#1e2523; --fg:#e8ecea; --muted:#9aa5a1; --line:#33403c;
+  --accent:#e0606f; --accent-ink:#1a0d10; --accent-soft:#3a1f24;
+  --elab:#7cc3a2; --elab-ink:#0f1f18; --elab-soft:#1f3a2f; --good:#7fcf92; --warn:#e8a46a;
+  --c1:#e0606f; --c2:#e0a95c; --c3:#8e9b97; --tile:rgba(255,255,255,.03); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151a19; --surface:#1e2523; --fg:#e8ecea; --muted:#9aa5a1; --line:#33403c;
+  --accent:#e0606f; --accent-ink:#1a0d10; --accent-soft:#3a1f24;
+  --elab:#7cc3a2; --elab-ink:#0f1f18; --elab-soft:#1f3a2f; --good:#7fcf92; --warn:#e8a46a;
+  --c1:#e0606f; --c2:#e0a95c; --c3:#8e9b97; --tile:rgba(255,255,255,.03); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  background-image:linear-gradient(var(--tile) 1px,transparent 1px),linear-gradient(90deg,var(--tile) 1px,transparent 1px);background-size:28px 28px}
+.wrap{max-width:720px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+header{display:grid;gap:6px}
+header h1{font-family:var(--f-display);font-weight:400;font-size:clamp(26px,6vw,36px);line-height:1.05;margin:0;color:var(--accent);text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:60ch}
+.sync{justify-self:start;font-size:12px;font-weight:600;border-radius:20px;padding:3px 10px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.sync.ok{color:var(--good);border-color:var(--good)}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:5px}
+.tab{font:600 14px var(--f-body);border:0;border-radius:8px;padding:10px 4px;background:transparent;color:var(--muted);cursor:pointer;min-width:0}
+.tab small{display:block;font-weight:400;font-size:11px}
+.tab[aria-selected="true"].t-comp{background:var(--accent);color:var(--accent-ink)}
+.tab[aria-selected="true"].t-elab{background:var(--elab);color:var(--elab-ink)}
+.tab[aria-selected="true"].t-ing,.tab[aria-selected="true"].t-fac{background:var(--fg);color:var(--surface)}
+@media (max-width:480px){.tabs{grid-template-columns:1fr 1fr}}
+.upl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.upl input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px}
+.thumbs div{position:relative}
+.thumbs img{width:72px;height:96px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
+.thumbs button{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;border:0;background:var(--fg);color:var(--surface);cursor:pointer;font-size:14px;line-height:1}
+.fstat{font-size:14px;color:var(--muted);margin:0}
+.fstat:empty{display:none}
+.fstat.err{color:var(--warn)}
+.fhead{font-size:14px;margin:0}
+.fl{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.fl.skip{opacity:.55}
+.fl .raw{font-family:var(--f-num);font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.fl .g3{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:6px}
+.fl input,.fl select{padding:8px;font-size:15px;background:var(--surface)}
+.fl .diff{font-size:13px;font-family:var(--f-num);margin:0}
+.fl .diff.up{color:var(--warn)}
+.fl .diff.down{color:var(--good)}
+.alerta{display:grid;gap:8px;border:2px solid var(--warn);background:var(--surface);border-radius:12px;padding:14px}
+.alerta:empty{display:none}
+.alerta h3{margin:0;font-size:15px;color:var(--warn)}
+.alerta .cnt{display:flex;flex-wrap:wrap;gap:6px}
+.alerta .cnt span{font-size:13px;font-weight:700;border-radius:20px;padding:3px 10px}
+.alerta .cnt .up{background:var(--accent-soft);color:var(--accent)}
+.alerta .cnt .down{background:var(--elab-soft);color:var(--good)}
+.alerta .sub{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:4px}
+.ch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:14px;padding:6px 0;border-bottom:1px dotted var(--line)}
+.ch:last-child{border-bottom:0}
+.ch b{font-family:var(--f-num);font-weight:700;white-space:nowrap;text-align:right}
+.ch small{grid-column:1/-1;color:var(--muted);font-size:12px}
+.ch .up{color:var(--accent)} .ch .down{color:var(--good)}
+.ch.big .up{background:var(--accent-soft);border-radius:4px;padding:0 4px}
+.ch .ab{font:600 12px var(--f-body);border:0;background:transparent;color:var(--fg);text-decoration:underline;cursor:pointer;padding:0;justify-self:start}
+.hist h3{margin:8px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.fres{display:grid;gap:4px;font-size:14px;background:var(--elab-soft);border-radius:10px;padding:12px}
+.fres:empty{display:none}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--muted);min-width:0;align-content:start}
+label .hint{font-weight:400;font-size:12px}
+input,select{font:500 16px var(--f-body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0}
+input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.sec{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:6px 0 -4px;display:flex;justify-content:space-between;gap:8px}
+.sec span{text-transform:none;letter-spacing:0;font-weight:600;font-family:var(--f-num);color:var(--fg)}
+/* filas de receta y tareas */
+.rowlist{display:grid;gap:8px}
+.ing{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 36px;gap:6px;align-items:center;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+.ing .n{grid-column:1/-1}
+.ing input,.ing select,.task input{padding:9px 8px;font-size:15px}
+.ing .sub{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--muted);font-family:var(--f-num);margin-top:-2px}
+.ing .gw{display:flex;align-items:center;gap:6px;font-family:var(--f-body);font-weight:600}
+.ing .gw input{width:84px;padding:6px 8px;font-size:14px}
+.lote input{font-size:20px;font-weight:700;max-width:180px}
+.carne{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px;gap:6px;align-items:center;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+.carne .n{grid-column:1/-1}
+.carne input{padding:9px 8px;font-size:15px}
+.carne .sub{grid-column:1/-1;font-size:12px;color:var(--muted);font-family:var(--f-num);margin-top:-2px}
+.fld{position:relative;min-width:0}
+.fld i{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;font-size:12px;color:var(--muted);pointer-events:none}
+.fld input{padding-right:40px}
+.hoja{display:grid;gap:0;background:var(--surface);border-radius:8px;padding:4px 12px}
+.hoja div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dotted var(--line);font-size:14px}
+.hoja div:last-child{border-bottom:0}
+.hoja b{font-family:var(--f-num);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.task{display:grid;grid-template-columns:minmax(0,1fr) 96px 36px;gap:6px;align-items:center}
+.del{border:0;background:transparent;color:var(--muted);font-size:22px;cursor:pointer;height:40px;line-height:1}
+.btn{font:600 14px var(--f-body);border-radius:8px;padding:10px 14px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.mode-elab .btn.primary{background:var(--elab);border-color:var(--elab);color:var(--elab-ink)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:20px;padding:6px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--fg);background:var(--fg);color:var(--surface)}
+/* Resumen de producción */
+.prod{background:var(--elab-soft);border-radius:12px;padding:14px;display:grid;gap:10px}
+.prod h3{margin:0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--elab)}
+.bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)}
+.bar i{display:block;height:100%}
+.legend{display:grid;gap:4px}
+.legend div{display:grid;grid-template-columns:12px minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:14px}
+.legend s{width:12px;height:12px;border-radius:3px;text-decoration:none}
+.legend b,.legend em{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:500;font-style:normal;white-space:nowrap}
+.legend em{color:var(--muted);font-size:12px;min-width:3.5em;text-align:right}
+.legend .tot{border-top:1px solid var(--elab);padding-top:6px;margin-top:2px;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;font-weight:600;background:var(--surface);border-radius:20px;padding:4px 10px;font-variant-numeric:tabular-nums}
+/* Ticket */
+.ticket{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:18px;display:grid;gap:12px}
+.mode-elab .ticket{border-color:var(--elab)}
+.ticket .big{display:flex;align-items:baseline;justify-content:space-between;gap:4px 10px;flex-wrap:wrap}
+.ticket .big span{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.ticket .big strong{font-family:var(--f-display);font-weight:400;font-size:clamp(34px,10vw,48px);line-height:1;color:var(--accent)}
+.mode-elab .ticket .big strong{color:var(--elab)}
+.ticket .big strong em{font-style:normal;font-size:.42em;font-family:var(--f-body);font-weight:600;color:var(--muted)}
+.ticket .equiv{font-size:14px;color:var(--muted);margin:-6px 0 0;text-align:right;font-family:var(--f-num)}
+.ticket .equiv:empty{display:none}
+.rows{display:grid;border-top:1px dashed var(--line)}
+.row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.row b{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:500;white-space:nowrap}
+.row.pos b{color:var(--good)}
+.note{font-size:13px;color:var(--warn);margin:0}
+.note:empty{display:none}
+/* Listas */
+.list{display:grid;gap:10px}
+.list h2{font-family:var(--f-display);font-weight:400;font-size:22px;margin:0}
+.items{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.badge{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:20px;padding:3px 8px}
+.badge.c{background:var(--accent-soft);color:var(--accent)}
+.badge.e{background:var(--elab-soft);color:var(--elab)}
+.item .name{font-weight:600;overflow-wrap:anywhere}
+.item .meta{font-size:12px;color:var(--muted)}
+.item .price{font-family:var(--f-num);font-weight:700;text-align:right;white-space:nowrap}
+.item .price small{display:block;font-weight:500;font-size:11px;color:var(--muted)}
+.acts{display:flex;gap:2px;justify-content:flex-end;margin-top:2px}
+.acts button{font:500 12px var(--f-body);border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px 4px;text-decoration:underline}
+.empty{color:var(--muted);font-size:14px;background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:14px}
+.cat{display:grid;grid-template-columns:minmax(0,1fr) 110px 36px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.cat .nm{font-weight:600;overflow-wrap:anywhere}
+.cat .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.cat input{padding:8px;font-size:15px}
+.ex{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--warn);margin-left:4px}
+.pick{display:grid;gap:8px;background:var(--elab-soft);border-radius:12px;padding:12px}
+.pick[hidden]{display:none}
+.pick input[type=search]{background:var(--surface);padding:9px 10px;font-size:15px}
+.pick .opts{display:grid;gap:6px;max-height:300px;overflow-y:auto;overscroll-behavior:contain}
+.pick .opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;text-align:left;font:500 15px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.pick .opt b{font-weight:600;overflow-wrap:anywhere}
+.pick .opt span{font-family:var(--f-num);font-size:13px;color:var(--muted);white-space:nowrap}
+.pick .opt.on{border-color:var(--elab);background:var(--elab-soft)}
+.pick .opt.on span::before{content:"✓ ";color:var(--elab);font-weight:700}
+.pick .vacio{font-size:14px;color:var(--muted);margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--surface);padding:10px 16px;border-radius:20px;font-weight:600;font-size:14px;max-width:calc(100% - 32px);text-align:center}
+.paginas{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;font-weight:600}.paginas a{color:var(--muted);text-decoration:none}.paginas a[aria-current]{color:var(--fg);text-decoration:underline}
+</style>
+
+<div class="wrap" id="app">
+  <header>
+    <nav class="paginas" aria-label="Páginas"><a href="index.html">Contabilidad</a><a href="calculadora.html" aria-current="page">Calculadora PVP</a><a href="inventario.html">Inventario</a></nav>
+    <h1>Calculadora de precios · Carnicería</h1>
+    <p>Precio de venta por kilo, pieza o bandeja. Separa lo que compras para revender de lo que elaboras tú, con el coste de producción y las horas de trabajo.</p>
+    <span class="sync" id="sync">Conectando…</span>
+  </header>
+
+  <section class="alerta" id="avisos" aria-live="polite"></section>
+
+  <div class="tabs" role="tablist">
+    <button class="tab t-comp" role="tab" id="tab-c" aria-selected="true">Comprado<small>Para revender</small></button>
+    <button class="tab t-elab" role="tab" id="tab-e" aria-selected="false">Elaborado<small>Hecho por mí</small></button>
+    <button class="tab t-ing" role="tab" id="tab-i" aria-selected="false">Ingredientes<small>Mis precios</small></button>
+    <button class="tab t-fac" role="tab" id="tab-f" aria-selected="false">Factura<small>Leer foto</small></button>
+  </div>
+
+  <!-- COMPRADO -->
+  <section class="panel" id="p-c">
+    <label>Producto<input id="c-nombre" type="text" value="Chuletón de vaca"></label>
+    <div class="grid2">
+      <label>Precio de compra (€/kg)<input id="c-compra" type="number" step="0.01" min="0" value="18.50"><span class="hint">Sin IVA, según factura</span></label>
+      <label>Merma (%)<input id="c-merma" type="number" step="0.5" min="0" max="95" value="8"><span class="hint">Hueso, grasa, limpieza, pérdida de peso</span></label>
+      <label>Otros costes (€/kg)<input id="c-otros" type="number" step="0.01" min="0" value="0.30"><span class="hint">Transporte, film…</span></label>
+    </div>
+  </section>
+
+  <!-- ELABORADO -->
+  <section class="panel" id="p-e" hidden>
+    <label>Producto<input id="e-nombre" type="text" value="Hamburguesa casera"></label>
+
+    <label class="lote">Kilos de carne a preparar<input id="e-kg" type="number" step="0.5" min="0" value="20"><span class="hint">Cambia este número y todas las cantidades se recalculan</span></label>
+    <datalist id="dl-ing"></datalist>
+
+    <p class="sec">Ingredientes por kilo de carne <span id="e-ingtot">0,00 €</span></p>
+    <div class="rowlist" id="ings"></div>
+    <div class="btns"><button class="btn" id="pick-ing-btn" type="button" aria-expanded="false">☰ Elegir de mi lista</button><button class="btn" id="add-ing" type="button">+ Añadir ingrediente</button></div>
+    <div class="pick" id="pick-ing" hidden></div>
+    <p class="hint" style="margin:-6px 0 0;font-size:12px;color:var(--muted)">La carne también va aquí como ingrediente: si es toda magro, pon 1000 g (o 1 kg); si es mezcla, por ejemplo 700 g de magro y 300 g de panceta. El resto, la cantidad para 1 kg de carne (60 g de especia, 2 huevos…). La app la multiplica por los kilos del lote. Pulsa «Elegir de mi lista» y toca los ingredientes que ya tienes guardados: se añaden con su precio. La tripa y los envases no suman peso a la masa.</p>
+
+    <p class="sec">Trabajo de todo el lote <span id="e-horastot">0 h 00 min</span></p>
+    <div class="rowlist" id="tareas"></div>
+    <div class="grid2">
+      <label>Coste por hora (€/h)<input id="e-coste-h" type="number" step="0.5" min="0" value="15"><span class="hint">Tu sueldo o el del empleado, con Seguridad Social</span></label>
+      <div class="btns" style="align-self:end"><button class="btn" id="add-task" type="button">+ Añadir tarea</button></div>
+    </div>
+
+    <p class="sec">Otros gastos del lote</p>
+    <div class="grid2">
+      <label>Merma de elaboración (%)<input id="e-merma" type="number" step="0.5" min="0" max="95" value="3"><span class="hint">Pérdida al picar, curar, cocer…</span></label>
+      <label>Gastos generales (€ del lote)<input id="e-otros" type="number" step="0.05" min="0" value="0.80"><span class="hint">Luz de la picadora, cámara, limpieza</span></label>
+    </div>
+
+    <div class="prod" aria-live="polite">
+      <h3 id="pr-h">Hoja de producción</h3>
+      <div class="hoja" id="pr-hoja"></div>
+      <h3>Coste de producción del lote</h3>
+      <div class="bar" id="pr-bar"></div>
+      <div class="legend" id="pr-leg"></div>
+      <div class="chips" id="pr-chips"></div>
+    </div>
+  </section>
+
+  <!-- INGREDIENTES -->
+  <section class="panel" id="p-i" hidden>
+    <p style="margin:0;color:var(--muted)">Tu lista de ingredientes y materiales con su precio de compra sin IVA. Al cambiar un precio aquí, las recetas que cargues usarán el nuevo.</p>
+    <div class="grid2">
+      <label>Ingrediente o material<input id="i-nombre" type="text" placeholder="Ej.: Pimentón de la Vera"></label>
+      <label>Se compra por
+        <select id="i-unidad"><option value="kg">Kilo (kg)</option><option value="l">Litro (l)</option><option value="ud">Unidad (ud)</option><option value="m">Metro (m)</option></select>
+      </label>
+      <label id="i-g-lbl" hidden><span id="i-g-txt">Peso por unidad (g)</span><input id="i-g" type="number" step="1" min="0" placeholder="Ej.: 50"><span class="hint">Pon 0 si no va en la masa (bandejas, etiquetas)</span></label>
+      <label>Precio (€)<input id="i-precio" type="number" step="0.01" min="0" placeholder="0,00"></label>
+    </div>
+    <div class="btns"><button class="btn primary" id="i-add" type="button">Añadir a mi lista</button></div>
+    <div id="cat"></div>
+    <div class="hist"><h3>Últimos cambios de precio</h3><div id="hist"></div></div>
+  </section>
+
+  <!-- FACTURA -->
+  <section class="panel" id="p-f" hidden>
+    <p style="margin:0;color:var(--muted)">Haz una foto a la factura del proveedor. Claude lee las líneas y te propone actualizar precios o crear artículos nuevos. No se guarda nada hasta que pulses «Aplicar cambios».</p>
+    <div id="f-off" class="empty" hidden>La lectura de facturas no está disponible en esta vista. Abre la calculadora desde tu cuenta de Claude.</div>
+    <div id="f-on">
+      <div class="upl">
+        <label class="btn" for="f-file" style="display:inline-block">Hacer foto o elegir imagen</label>
+        <input id="f-file" type="file" accept="image/*" multiple>
+        <button class="btn primary" id="f-leer" type="button" disabled>Leer factura</button>
+        <button class="btn" id="f-stop" type="button" hidden>Parar</button>
+      </div>
+      <div class="thumbs" id="f-thumbs" style="margin-top:10px"></div>
+    </div>
+    <p class="fstat" id="f-stat"></p>
+    <p class="fhead" id="f-head" hidden></p>
+    <div class="alerta" id="f-alerta"></div>
+    <div class="rowlist" id="f-lineas"></div>
+    <div class="btns" id="f-apl-row" hidden><button class="btn primary" id="f-aplicar" type="button">Aplicar cambios</button><button class="btn" id="f-desc" type="button">Descartar</button></div>
+    <div class="fres" id="f-res"></div>
+  </section>
+
+  <!-- MARGEN / IVA / FORMATO (común) -->
+  <section class="panel" id="p-m">
+    <p class="sec" style="margin-top:0">Cómo lo vendes</p>
+    <div class="seg" id="venta">
+      <button type="button" data-v="kg" aria-pressed="true">Por kilo</button>
+      <button type="button" data-v="pieza" aria-pressed="false">Por pieza</button>
+      <button type="button" data-v="bandeja" aria-pressed="false">Por bandeja</button>
+    </div>
+    <div class="grid2" id="venta-ud" hidden>
+      <label><span id="lbl-g">Peso de cada pieza (g)</span><input id="v-gramos" type="number" step="5" min="1" value="150"></label>
+      <label>Envase por unidad (€)<input id="v-envase" type="number" step="0.01" min="0" value="0.05"><span class="hint">Bandeja, film, etiqueta</span></label>
+    </div>
+    <p class="sec">Margen e IVA</p>
+    <div class="grid2">
+      <label>Margen (%)<input id="margen" type="number" step="1" min="0" max="95" value="35"></label>
+      <label>Cálculo del margen
+        <select id="tipo-margen"><option value="venta">Sobre precio de venta</option><option value="coste">Sobre coste (recargo)</option></select>
+      </label>
+      <label>IVA
+        <select id="iva"><option value="10" selected>10 % (carne, alimentos)</option><option value="4">4 %</option><option value="21">21 %</option></select>
+      </label>
+    </div>
+    <div>
+      <p class="sec" style="margin-bottom:8px">Redondear precio final</p>
+      <div class="seg" id="redondeo">
+        <button type="button" data-r="0" aria-pressed="false">No</button>
+        <button type="button" data-r="0.05" aria-pressed="false">0,05 €</button>
+        <button type="button" data-r="0.1" aria-pressed="true">0,10 €</button>
+        <button type="button" data-r="95" aria-pressed="false">Terminar en ,95</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTADO -->
+  <section class="ticket" id="ticket" aria-live="polite">
+    <div class="big"><span id="r-lbl">PVP con IVA</span><strong id="r-pvp">0,00 €</strong></div>
+    <p class="equiv" id="r-equiv"></p>
+    <div class="rows" id="r-rows"></div>
+    <p class="note" id="r-note"></p>
+    <div class="btns"><button class="btn primary" id="guardar" type="button">Guardar en mis productos</button></div>
+  </section>
+
+  <!-- MIS PRODUCTOS -->
+  <section class="list">
+    <h2>Mis productos</h2>
+    <div class="seg" id="filtro">
+      <button type="button" data-f="todos" aria-pressed="true">Todos</button>
+      <button type="button" data-f="c" aria-pressed="false">Comprados</button>
+      <button type="button" data-f="e" aria-pressed="false">Elaborados</button>
+    </div>
+    <div class="items" id="items"><div class="empty">Cargando tus productos…</div></div>
+    <div class="btns" id="export" hidden>
+      <button class="btn" id="dl-cartel" type="button">Descargar lista de precios para imprimir</button>
+      <button class="btn" id="dl-csv" type="button">Descargar en Excel (CSV)</button>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/*CALC*/
+function redondear(x,r){
+  if(!r) return x;
+  if(r===95){const b=Math.floor(x);return x<=b+0.95+1e-9?b+0.95:b+1.95;}
+  return Math.round(Math.ceil(x/r-1e-9)*r*100)/100;
+}
+function kgPorUnidad(i){
+  const u=i.unidad||'kg';
+  if(u==='kg') return 1;
+  if(u==='l') return (i.g!=null&&i.g!==''?+i.g:1000)/1000;
+  if(u==='ud') return (+i.g||0)/1000;
+  return 0;
+}
+const PRECIO_UN={g:'kg',kg:'kg',ml:'l',ud:'ud',m:'m'};
+function expandir(d){
+  if(d.carnes||d.adds){
+    const K=+d.kgLote||0, out=[];
+    (d.carnes||[]).forEach(c=>{const kg=K*(+c.pct||0)/100;out.push({nombre:c.nombre,cant:kg,unidad:'kg',coste:kg*(+c.precio||0),kg,carne:true});});
+    (d.adds||[]).forEach(a=>{const q=(+a.porKg||0)*K,p=+a.precio||0;let cant,un,kg;
+      if(a.unidad==='g'){cant=q/1000;un='kg';kg=cant;}
+      else if(a.unidad==='kg'){cant=q;un='kg';kg=q;}
+      else if(a.unidad==='ml'){cant=q/1000;un='l';kg=cant*((a.g!=null&&a.g!==''?+a.g:1000)/1000);}
+      else if(a.unidad==='ud'){cant=q;un='ud';kg=q*(+a.g||0)/1000;}
+      else{cant=q;un='m';kg=0;}
+      out.push({nombre:a.nombre,cant,unidad:un,coste:cant*p,kg});});
+    return out;
+  }
+  return (d.ings||[]).map(i=>{const c=+i.cant||0;return {nombre:i.nombre,cant:c,unidad:i.unidad||'kg',coste:c*(+i.precio||0),kg:c*kgPorUnidad(i)};});
+}
+function calcular(d){
+  const out={nota:''};
+  let costeKg;
+  if(d.tipo==='c'){
+    const merma=Math.min((d.merma||0)/100,0.95);
+    costeKg=((d.compra||0)+(d.otros||0))/(1-merma);
+  }else{
+    const lista=expandir(d);out.lista=lista;
+    let kgBruto=0,mp=0;lista.forEach(x=>{mp+=x.coste;kgBruto+=x.kg;});
+    if(d.carnes){const pct=d.carnes.reduce((s,c)=>s+(+c.pct||0),0);if(d.carnes.length&&Math.abs(pct-100)>0.5)out.nota='Los porcentajes de carne suman '+Math.round(pct*10)/10+' %. Deberían sumar 100 %.';}
+    const merma=Math.min((d.merma||0)/100,0.95);
+    const min=(d.tareas||[]).reduce((s,t)=>s+(+t.min||0),0);
+    const mo=min/60*(d.costeHora||0);
+    const otros=d.otros||0;
+    const peso=kgBruto*(1-merma);
+    out.prod={mp,mo,otros,total:mp+mo+otros,min,peso,kgBruto};
+    costeKg=peso>0?(mp+mo+otros)/peso:NaN;
+    if(!(peso>0)) out.nota='Pon los kilos de carne a preparar para calcular el lote.';
+  }
+  out.costeKg=costeKg;
+  const m=Math.min((d.margen||0)/100,0.95), iva=(d.iva||0)/100;
+  const conMargen=c=>d.tipoMargen==='coste'?c*(1+m):c/(1-m);
+  const v=d.venta||{tipo:'kg'};
+  if(v.tipo==='kg'){
+    out.pvpKg=redondear(conMargen(costeKg)*(1+iva),d.redondeo);
+    out.sinKg=out.pvpKg/(1+iva);
+    out.benefKg=out.sinKg-costeKg;
+    out.margenReal=out.sinKg>0?out.benefKg/out.sinKg*100:NaN;
+  }else{
+    const kg=(v.gramos||0)/1000;
+    out.costeUd=costeKg*kg+(v.envase||0);
+    out.pvpUd=redondear(conMargen(out.costeUd)*(1+iva),d.redondeo);
+    out.sinUd=out.pvpUd/(1+iva);
+    out.benefUd=out.sinUd-out.costeUd;
+    out.pvpKg=kg>0?out.pvpUd/kg:NaN;
+    out.margenReal=out.sinUd>0?out.benefUd/out.sinUd*100:NaN;
+    if(out.prod&&kg>0) out.unidadesLote=Math.floor(out.prod.peso/kg+1e-9);
+  }
+  if(!out.nota&&isFinite(out.margenReal)&&out.margenReal<15) out.nota='Margen bajo: con menos del 15 % es difícil cubrir alquiler, luz y sueldos.';
+  return out;
+}
+/*ENDCALC*/
+
+(function(){
+  const $=id=>document.getElementById(id);
+  const eur=n=>isFinite(n)?n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':'–';
+  const nf=(n,d=2)=>isFinite(n)?n.toLocaleString('es-ES',{maximumFractionDigits:d}):'–';
+  const hm=min=>{min=Math.round(min||0);return Math.floor(min/60)+' h '+String(min%60).padStart(2,'0')+' min'};
+  const num=id=>{const v=parseFloat($(id).value);return isNaN(v)?0:v};
+  const UN={kg:'kg',l:'l',ud:'ud',m:'m'};
+  const VLBL={kg:'kilo',pieza:'pieza',bandeja:'bandeja'};
+  let modo='c', redondeoV=0.1, venta='kg', filtro='todos', ultimo=null, ultimoRes=null;
+  let productos=[], catalogo=[], cambios=[], db=null, downloads=null, usr=null, uid=null, visto=0, nombres={}, facturaProv='';
+
+  function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2200)}
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // ---------- almacenamiento: nube (db) o este dispositivo ----------
+  const local={get(k){try{return JSON.parse(localStorage.getItem('carn-'+k)||'[]')}catch(e){return[]}},set(k,v){try{localStorage.setItem('carn-'+k,JSON.stringify(v))}catch(e){}}};
+  async function guardarDoc(col,id,data){
+    if(db){await db.collection(col).doc(id).set(data);}
+    else{const arr=col==='productos'?productos:catalogo;const i=arr.findIndex(x=>x.id===id);const o={...data,id};if(i>=0)arr[i]=o;else arr.push(o);local.set(col,arr);refrescar();}
+  }
+  async function borrarDoc(col,id){
+    if(db){await db.collection(col).doc(id).delete();}
+    else{if(col==='productos')productos=productos.filter(x=>x.id!==id);else catalogo=catalogo.filter(x=>x.id!==id);local.set(col,col==='productos'?productos:catalogo);refrescar();}
+  }
+  const nuevoId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  function refrescar(){renderCatalogo();renderLista();calc();}
+
+  // ---------- receta ----------
+  function buscarCat(nombre){const n=(nombre||'').trim().toLowerCase();return catalogo.find(c=>c.nombre.trim().toLowerCase()===n);}
+  let rid=0;
+  const CAT2ADD={kg:'g',l:'ml',ud:'ud',m:'m'};
+  function addCarne(c={}){
+    const r=++rid, d=document.createElement('div');d.className='carne';
+    d.innerHTML=`<input class="n" id="cr-n-${r}" type="text" list="dl-ing" aria-label="Carne" placeholder="Carne (ej.: magro de cerdo)">
+      <div class="fld"><input class="pc" id="cr-p-${r}" type="number" step="1" min="0" max="100" aria-label="Porcentaje de la mezcla"><i>%</i></div>
+      <div class="fld" style="display:none"></div>
+      <div class="fld"><input class="p" id="cr-e-${r}" type="number" step="0.01" min="0" aria-label="Precio por kilo"><i>€/kg</i></div>
+      <button type="button" class="del" aria-label="Quitar carne">×</button>
+      <div class="sub"></div>`;
+    d.querySelector('.fld[style]').remove();
+    d.querySelector('.n').value=c.nombre||'';d.querySelector('.pc').value=c.pct??'';d.querySelector('.p').value=c.precio??'';
+    d.querySelector('.n').addEventListener('change',e=>{const k=buscarCat(e.target.value);if(k&&k.unidad==='kg'){d.querySelector('.p').value=k.precio;calc();}});
+    d.querySelector('.del').onclick=()=>{d.remove();calc()};
+    d.querySelectorAll('input').forEach(x=>x.addEventListener('input',calc));
+    $('carnes').appendChild(d);
+  }
+  function addIng(i={}){
+    const r=++rid, d=document.createElement('div');d.className='ing';
+    d.innerHTML=`<input class="n" id="ig-n-${r}" type="text" list="dl-ing" aria-label="Ingrediente" placeholder="Ingrediente">
+      <input class="c" id="ig-c-${r}" type="number" step="any" min="0" aria-label="Cantidad por kilo de carne" placeholder="por kg">
+      <select class="u" id="ig-u-${r}" aria-label="Unidad"><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="ud">ud</option><option value="m">m</option></select>
+      <input class="p" id="ig-p-${r}" type="number" step="0.01" min="0" aria-label="Precio de compra" placeholder="€/kg">
+      <button type="button" class="del" aria-label="Quitar ingrediente">×</button>
+      <div class="sub"><label class="gw" hidden><span class="gl">Peso por ud</span><input class="g" id="ig-g-${r}" type="number" step="1" min="0" aria-label="Gramos por unidad"> g</label><span class="tot"></span></div>`;
+    d.querySelector('.n').value=i.nombre||'';d.querySelector('.c').value=i.porKg??'';d.querySelector('.u').value=i.unidad||'g';d.querySelector('.p').value=i.precio??'';d.querySelector('.g').value=i.g??'';
+    const setPh=()=>{const u=d.querySelector('.u').value;d.querySelector('.p').placeholder='€/'+PRECIO_UN[u];
+      d.querySelector('.gw').hidden=!(u==='ud'||u==='ml');d.querySelector('.gl').textContent=u==='ml'?'Peso por litro':'Peso por ud';
+      if(u==='ml'&&d.querySelector('.g').value==='')d.querySelector('.g').value=1000;};setPh();
+    let uPrev=d.querySelector('.u').value;
+    d.querySelector('.u').addEventListener('change',()=>{const u=d.querySelector('.u').value,ci=d.querySelector('.c'),v=parseFloat(ci.value);
+      if(!isNaN(v)){if(uPrev==='g'&&u==='kg')ci.value=+(v/1000).toFixed(4);else if(uPrev==='kg'&&u==='g')ci.value=+(v*1000).toFixed(2);}
+      uPrev=u;setPh();calc();});
+    d.querySelector('.n').addEventListener('change',e=>{const c=buscarCat(e.target.value);if(c){if(!(c.unidad==='kg'&&d.querySelector('.u').value==='kg'))d.querySelector('.u').value=CAT2ADD[c.unidad]||'g';uPrev=d.querySelector('.u').value;d.querySelector('.p').value=c.precio;d.querySelector('.g').value=c.g??'';setPh();calc();}});
+    d.querySelector('.del').onclick=()=>{d.remove();calc()};
+    d.querySelectorAll('input,select').forEach(x=>x.addEventListener('input',calc));
+    $('ings').appendChild(d);
+  }
+  function addTask(t={}){
+    const r=++rid, d=document.createElement('div');d.className='task';
+    d.innerHTML=`<input class="tn" id="tk-n-${r}" type="text" aria-label="Tarea" placeholder="Tarea">
+      <input class="tm" id="tk-m-${r}" type="number" step="5" min="0" aria-label="Minutos" placeholder="min">
+      <button type="button" class="del" aria-label="Quitar tarea">×</button>`;
+    d.querySelector('.tn').value=t.nombre||'';d.querySelector('.tm').value=t.min??'';
+    d.querySelector('.del').onclick=()=>{d.remove();calc()};
+    d.querySelectorAll('input').forEach(x=>x.addEventListener('input',calc));
+    $('tareas').appendChild(d);
+  }
+  $('add-ing').onclick=()=>{addIng();calc()};
+  // selector de ingredientes guardados
+  const PICK={ing:{box:'pick-ing',btn:'pick-ing-btn',rows:'#ings .ing',filtro:()=>true}};
+  function usados(k){return new Set([...document.querySelectorAll(PICK[k].rows)].map(r=>norm(r.querySelector('.n').value)).filter(Boolean));}
+  function pintarPick(k){
+    const P=PICK[k],box=$(P.box);if(box.hidden)return;
+    const q=norm(box.querySelector('input')?.value),us=usados(k);
+    const lista=[...catalogo].filter(P.filtro).filter(c=>!q||norm(c.nombre).includes(q)).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+    const opts=box.querySelector('.opts');
+    if(!catalogo.filter(P.filtro).length){opts.innerHTML=`<p class="vacio">Tu lista está vacía. Añádelas en la pestaña Ingredientes.</p>`;return;}
+    opts.innerHTML=lista.length?lista.map(c=>`<button type="button" class="opt${us.has(norm(c.nombre))?' on':''}" data-id="${esc(c.id)}"><b>${esc(c.nombre)}</b><span>${eur(c.precio)}/${UN[c.unidad]||c.unidad}</span></button>`).join(''):'<p class="vacio">Nada coincide con la búsqueda.</p>';
+  }
+  function abrirPick(k){
+    const P=PICK[k],box=$(P.box),abierto=!box.hidden;
+    box.hidden=abierto;$(P.btn).setAttribute('aria-expanded',!abierto);$(P.btn).textContent=abierto?'☰ Elegir de mi lista':'Cerrar lista';
+    if(abierto)return;
+    box.innerHTML=`<input type="search" id="${P.box}-q" aria-label="Buscar en mi lista" placeholder="Buscar en mi lista…"><div class="opts"></div><p class="vacio" style="font-size:12px">Toca para añadir a la receta. Toca otra vez para quitarlo.</p>`;
+    box.querySelector('input').addEventListener('input',()=>pintarPick(k));
+    box.querySelector('.opts').addEventListener('click',e=>{
+      const b=e.target.closest('.opt');if(!b)return;const c=catalogo.find(x=>x.id===b.dataset.id);if(!c)return;
+      const fila=[...document.querySelectorAll(P.rows)].find(r=>norm(r.querySelector('.n').value)===norm(c.nombre));
+      if(fila){fila.remove();}
+      else{
+        const vacia=[...document.querySelectorAll(P.rows)].find(r=>!r.querySelector('.n').value.trim());if(vacia)vacia.remove();
+        addIng({nombre:c.nombre,unidad:CAT2ADD[c.unidad]||'g',precio:c.precio,g:c.g??''});
+      }
+      calc();pintarPick(k);
+    });
+    pintarPick(k);
+  }
+  $('pick-ing-btn').onclick=()=>abrirPick('ing');
+
+  $('e-kg').addEventListener('input',calc);
+  $('add-task').onclick=()=>{addTask();calc()};
+
+  function datos(){
+    const base={tipo:(modo==='i'||modo==='f')?'c':modo,margen:num('margen'),tipoMargen:$('tipo-margen').value,iva:num('iva'),redondeo:redondeoV,
+      venta:{tipo:venta,gramos:num('v-gramos'),envase:num('v-envase')}};
+    if(base.tipo==='c') return {...base,nombre:$('c-nombre').value.trim()||'Sin nombre',compra:num('c-compra'),merma:num('c-merma'),otros:num('c-otros')};
+    return {...base,nombre:$('e-nombre').value.trim()||'Sin nombre',merma:num('e-merma'),otros:num('e-otros'),costeHora:num('e-coste-h'),
+      kgLote:num('e-kg'),
+      adds:[...document.querySelectorAll('#ings .ing')].map(r=>{const u=r.querySelector('.u').value;return {nombre:r.querySelector('.n').value.trim(),porKg:parseFloat(r.querySelector('.c').value)||0,unidad:u,precio:parseFloat(r.querySelector('.p').value)||0,g:(u==='ud'||u==='ml')?(parseFloat(r.querySelector('.g').value)||0):null};}).filter(i=>i.nombre||i.porKg),
+      tareas:[...document.querySelectorAll('#tareas .task')].map(r=>({nombre:r.querySelector('.tn').value.trim(),min:parseFloat(r.querySelector('.tm').value)||0})).filter(t=>t.nombre||t.min)};
+  }
+
+  // recetas guardadas antes con cantidades totales: pasarlas a "por kilo de carne"
+  function convertir(d){
+    const ings=d.ings||[], kgs=ings.filter(i=>(i.unidad||'kg')==='kg'), tot=kgs.reduce((s,i)=>s+(+i.cant||0),0);
+    const carnes=kgs.filter(i=>(+i.cant||0)>=tot*0.1), K=carnes.reduce((s,i)=>s+(+i.cant||0),0)||1;
+    const r=x=>Math.round(x*100)/100;
+    return {...d,kgLote:r(K),ings:undefined,
+      carnes:carnes.map(i=>({nombre:i.nombre,pct:r((+i.cant||0)/K*100),precio:i.precio})),
+      adds:ings.filter(i=>!carnes.includes(i)).map(i=>{const u=i.unidad||'kg',c=+i.cant||0;
+        return u==='kg'?{nombre:i.nombre,porKg:r(c*1000/K),unidad:'g',precio:i.precio}:u==='l'?{nombre:i.nombre,porKg:r(c*1000/K),unidad:'ml',precio:i.precio,g:i.g}:{nombre:i.nombre,porKg:r(c/K),unidad:u,precio:i.precio,g:i.g};})};
+  }
+  function cargar(d){
+    if(d.tipo==='c'){$('c-nombre').value=d.nombre;$('c-compra').value=d.compra;$('c-merma').value=d.merma;$('c-otros').value=d.otros;}
+    else{
+      $('e-nombre').value=d.nombre;$('e-merma').value=d.merma;$('e-otros').value=d.otros;$('e-coste-h').value=d.costeHora;
+      if(!d.carnes&&d.ings) d=convertir(d);
+      $('e-kg').value=d.kgLote;
+      $('ings').innerHTML='';let act=0;
+      // la carne ahora va como ingrediente más (gramos por kilo de carne)
+      d.adds=[...(d.carnes||[]).filter(c=>c.nombre||c.pct).map(c=>({nombre:c.nombre,porKg:Math.round((+c.pct||0)*10*100)/100,unidad:'g',precio:c.precio})),...(d.adds||[])];delete d.carnes;
+      (d.adds||[]).forEach(i=>{const c=buscarCat(i.nombre);if(c&&PRECIO_UN[i.unidad]===c.unidad){if(c.precio!==i.precio){i={...i,precio:c.precio};act++;}if(c.g!=null&&i.g==null)i={...i,g:c.g};}addIng(i);});
+      $('tareas').innerHTML='';(d.tareas||[]).forEach(addTask);
+      if(act) setTimeout(()=>toast(act+' precio'+(act>1?'s actualizados':' actualizado')+' desde tu lista de ingredientes'),50);
+    }
+    $('margen').value=d.margen;$('margen').dataset.touched='1';$('tipo-margen').value=d.tipoMargen||'venta';$('iva').value=String(d.iva??10);
+    setRedondeo(d.redondeo??0.1);setVenta(d.venta?.tipo||'kg');
+    if(d.venta){$('v-gramos').value=d.venta.gramos||150;$('v-envase').value=d.venta.envase??0.05;}
+    setModo(d.tipo);window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  // ---------- cálculo y pintado ----------
+  function row(lbl,val,cls=''){return `<div class="row ${cls}"><span>${lbl}</span><b>${val}</b></div>`}
+  function calc(){
+    if(modo==='i'||modo==='f') return;
+    const d=datos(), r=calcular(d);
+    // resumen de producción
+    if(r.prod){
+      const p=r.prod, t=p.total||1;
+      const parts=[['Ingredientes',p.mp,'--c1'],['Mano de obra · '+hm(p.min),p.mo,'--c2'],['Gastos generales',p.otros,'--c3']];
+      $('pr-bar').innerHTML=parts.map(x=>`<i style="width:${Math.max(0,x[1]/t*100)}%;background:var(${x[2]})"></i>`).join('');
+      $('pr-leg').innerHTML=parts.map(x=>`<div><s style="background:var(${x[2]})"></s><span>${x[0]}</span><em>${nf(x[1]/t*100,0)} %</em><b>${eur(x[1])}</b></div>`).join('')
+        +`<div class="tot"><s></s><span>Total del lote</span><em></em><b>${eur(p.total)}</b></div>`;
+      const chips=[`${nf(p.kgBruto)} kg de masa → ${nf(p.peso)} kg tras merma`,
+        p.peso>0?`${nf(p.min/p.peso,1)} min de trabajo por kg`:null,
+        p.peso>0?`Mano de obra: ${eur(p.mo/p.peso)}/kg`:null,
+        r.unidadesLote!=null?`Salen ${r.unidadesLote} ${venta==='pieza'?'piezas':'bandejas'}`:null].filter(Boolean);
+      $('pr-chips').innerHTML=chips.map(c=>`<span class="chip">${c}</span>`).join('');
+      const K=d.kgLote||0, L=r.lista||[], nC=(d.carnes||[]).length;
+      const fmtCant=x=>x.unidad==='kg'?(x.cant<1?nf(x.cant*1000,0)+' g':nf(x.cant,2)+' kg'):x.unidad==='l'?(x.cant<1?nf(x.cant*1000,0)+' ml':nf(x.cant,2)+' l'):x.unidad==='ud'?nf(x.cant,1)+' ud':nf(x.cant,1)+' m';
+      $('e-ingtot').textContent=eur(L.slice(nC).reduce((s,x)=>s+x.coste,0)/(K||1))+' por kg';
+      $('e-horastot').textContent=hm(p.min);
+      document.querySelectorAll('#ings .ing').forEach((el,i)=>{const x=L[nC+i];if(!x){el.querySelector('.tot').textContent='';return;}
+        el.querySelector('.tot').textContent=x.cant?'Lote: '+fmtCant(x)+' · '+eur(x.coste)+(x.kg>0?'':' · no suma peso'):'';});
+      $('pr-h').textContent='Hoja de producción · '+nf(K,2)+' kg de carne';
+      $('pr-hoja').innerHTML=L.filter(x=>x.nombre&&x.cant).map(x=>`<div><span>${esc(x.nombre)}</span><b>${fmtCant(x)}</b></div>`).join('')||'<div><span>Añade carne e ingredientes</span><b></b></div>';
+    }
+    // ticket
+    let rows='';
+    if(venta==='kg'){
+      $('r-lbl').textContent='PVP con IVA';$('r-pvp').innerHTML=eur(r.pvpKg)+'<em> /kg</em>';$('r-equiv').textContent='';
+      if(r.prod){rows+=row('Peso final del lote',nf(r.prod.peso)+' kg')+row('Coste total del lote',eur(r.prod.total));}
+      rows+=row('Coste real por kg',eur(r.costeKg))+row('Precio sin IVA',eur(r.sinKg)+'/kg')+row('IVA',eur(r.pvpKg-r.sinKg)+'/kg')+row('Beneficio por kg',eur(r.benefKg),'pos');
+      if(r.prod) rows+=row('Beneficio del lote',eur(r.benefKg*r.prod.peso),'pos');
+    }else{
+      const u=VLBL[venta];
+      $('r-lbl').textContent='PVP por '+u;$('r-pvp').innerHTML=eur(r.pvpUd)+'<em> /'+u+'</em>';$('r-equiv').textContent='= '+eur(r.pvpKg)+'/kg';
+      if(r.prod) rows+=row('Coste total del lote',eur(r.prod.total));
+      rows+=row('Coste real por kg',eur(r.costeKg))+row('Coste por '+u+' (con envase)',eur(r.costeUd))+row('Precio sin IVA',eur(r.sinUd))+row('IVA',eur(r.pvpUd-r.sinUd))+row('Beneficio por '+u,eur(r.benefUd),'pos');
+      if(r.prod&&r.unidadesLote!=null) rows+=row('Beneficio del lote ('+r.unidadesLote+' uds.)',eur(r.benefUd*r.unidadesLote),'pos');
+    }
+    rows+=row('Margen real sobre venta',isFinite(r.margenReal)?nf(r.margenReal,1)+' %':'–');
+    $('r-rows').innerHTML=rows;$('r-note').textContent=r.nota;
+    ultimo=d;ultimoRes=r;
+    if(modo==='e')pintarPick('ing');
+  }
+
+  // ---------- controles ----------
+  function setModo(x){
+    modo=x;['c','e','i','f'].forEach(k=>{$('tab-'+k).setAttribute('aria-selected',k===x);$('p-'+k).hidden=k!==x;});
+    $('p-m').hidden=$('ticket').hidden=(x==='i'||x==='f');
+    $('app').classList.toggle('mode-elab',x==='e');
+    if($('margen').dataset.touched!=='1'){$('margen').value=x==='e'?40:35;}
+    calc();
+  }
+  $('tab-c').onclick=()=>setModo('c');$('tab-e').onclick=()=>setModo('e');$('tab-i').onclick=()=>setModo('i');$('tab-f').onclick=()=>setModo('f');
+  $('margen').addEventListener('input',()=>$('margen').dataset.touched='1');
+  document.querySelectorAll('#p-c input,#p-e > label input,#p-e .grid2 input,#p-m input,#p-m select').forEach(x=>{x.addEventListener('input',calc);x.addEventListener('change',calc)});
+  function setRedondeo(v){redondeoV=+v;document.querySelectorAll('#redondeo button').forEach(o=>o.setAttribute('aria-pressed',+o.dataset.r===redondeoV));}
+  document.querySelectorAll('#redondeo button').forEach(b=>b.onclick=()=>{setRedondeo(b.dataset.r);calc();});
+  function setVenta(v){
+    venta=v;document.querySelectorAll('#venta button').forEach(o=>o.setAttribute('aria-pressed',o.dataset.v===v));
+    $('venta-ud').hidden=v==='kg';$('lbl-g').textContent=v==='bandeja'?'Peso de cada bandeja (g)':'Peso de cada pieza (g)';
+  }
+  document.querySelectorAll('#venta button').forEach(b=>b.onclick=()=>{
+    const prev=venta;setVenta(b.dataset.v);
+    if(prev!==venta&&venta==='bandeja'&&num('v-gramos')<300)$('v-gramos').value=500;
+    if(prev!==venta&&venta==='pieza'&&num('v-gramos')>=300)$('v-gramos').value=150;
+    calc();});
+
+  // ---------- guardar productos ----------
+  $('guardar').onclick=async()=>{
+    if(!ultimo||!ultimoRes||!isFinite(ultimoRes.pvpKg)){toast('Revisa los datos: falta el coste o el peso.');return;}
+    const r=ultimoRes, ex=productos.find(p=>p.nombre.toLowerCase()===ultimo.nombre.toLowerCase()&&p.tipo===ultimo.tipo);
+    const doc={tipo:ultimo.tipo,nombre:ultimo.nombre,costeKg:+r.costeKg.toFixed(2),pvpKg:+r.pvpKg.toFixed(2),
+      venta:venta,pvpUd:r.pvpUd!=null?+r.pvpUd.toFixed(2):null,gramos:venta==='kg'?null:ultimo.venta.gramos,
+      margen:+(r.margenReal||0).toFixed(1),costeLote:r.prod?+r.prod.total.toFixed(2):null,minutos:r.prod?r.prod.min:null,
+      datos:ultimo,actualizado:Date.now()};
+    try{await guardarDoc('productos',ex?ex.id:nuevoId(),doc);toast((ex?'Actualizado: ':'Guardado: ')+ultimo.nombre);}
+    catch(e){toast('No se pudo guardar. Comprueba la conexión e inténtalo de nuevo.');}
+  };
+
+  function renderLista(){
+    const list=productos.filter(p=>filtro==='todos'||p.tipo===filtro).sort((a,b)=>a.tipo.localeCompare(b.tipo)||a.nombre.localeCompare(b.nombre,'es'));
+    const box=$('items');box.innerHTML='';$('export').hidden=!productos.length;
+    if(!list.length){box.innerHTML='<div class="empty">Todavía no hay productos aquí. Calcula un precio arriba y pulsa «Guardar en mis productos».</div>';return}
+    list.forEach(p=>{
+      const d=document.createElement('div');d.className='item';
+      const meta=['Coste '+eur(p.costeKg)+'/kg','margen '+nf(p.margen,1)+' %'];
+      if(p.minutos) meta.push(hm(p.minutos)+' de trabajo');
+      const ud=p.venta&&p.venta!=='kg'&&p.pvpUd!=null?`<small>${eur(p.pvpUd)} / ${VLBL[p.venta]} ${p.gramos} g</small>`:'';
+      d.innerHTML=`<span class="badge ${p.tipo}">${p.tipo==='c'?'Comprado':'Elaborado'}</span>
+        <div><div class="name"></div><div class="meta">${meta.join(' · ')}</div></div>
+        <div><div class="price">${eur(p.pvpKg)}/kg${ud}</div><div class="acts"><button type="button" class="ab">Abrir</button><button type="button" class="qb">Quitar</button></div></div>`;
+      d.querySelector('.name').textContent=p.nombre;
+      d.querySelector('.ab').onclick=()=>{if(p.datos)cargar(JSON.parse(JSON.stringify(p.datos)));};
+      d.querySelector('.qb').onclick=async()=>{try{await borrarDoc('productos',p.id);toast('Quitado: '+p.nombre)}catch(e){toast('No se pudo quitar. Inténtalo de nuevo.')}};
+      box.appendChild(d);
+    });
+  }
+  document.querySelectorAll('#filtro button').forEach(b=>b.onclick=()=>{filtro=b.dataset.f;document.querySelectorAll('#filtro button').forEach(o=>o.setAttribute('aria-pressed',o===b));renderLista()});
+
+  // ---------- catálogo de ingredientes ----------
+  function renderCatalogo(){
+    try{pintarPick('ing');}catch(e){}
+    $('dl-ing').innerHTML=catalogo.map(c=>`<option value="${esc(c.nombre)}">${esc(c.nombre)} · ${eur(c.precio)}/${UN[c.unidad]}</option>`).join('');
+    const box=$('cat');
+    if(!catalogo.length){box.innerHTML='<div class="empty">Tu lista está vacía. Añade la carne, especias, tripa y envases que usas en tus elaborados.</div>';return}
+    box.innerHTML='';
+    [...catalogo].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).forEach(c=>{
+      const d=document.createElement('div');d.className='cat';
+      d.innerHTML=`<div class="nm"><span class="t"></span>${c.ejemplo?'<span class="ex">ejemplo</span>':''}<small>€ por ${{kg:'kilo',l:'litro',m:'metro',ud:'unidad'}[c.unidad]||'unidad'}${(c.unidad==='ud'||c.unidad==='l')?(c.g?' · '+c.g+' g':' · no suma peso'):''}</small></div>
+        <input type="number" step="0.01" min="0" id="cat-${c.id}" aria-label="Precio">
+        <button type="button" class="del" aria-label="Quitar de la lista">×</button>`;
+      d.querySelector('.t').textContent=c.nombre;d.querySelector('input').value=c.precio;
+      d.querySelector('input').addEventListener('change',async e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;
+        try{await guardarDoc('ingredientes',c.id,{nombre:c.nombre,unidad:c.unidad,precio:v,g:c.g??null,ejemplo:false});toast('Precio actualizado: '+c.nombre);
+          if(c.precio&&v!==c.precio)registrarCambio({tipo:'ing',nombre:c.nombre,antes:c.precio,ahora:v,unidad:c.unidad,pct:(v-c.precio)/c.precio*100,origen:'manual'});}catch(_){toast('No se pudo guardar el precio.')}});
+      d.querySelector('.del').onclick=async()=>{try{await borrarDoc('ingredientes',c.id);toast('Quitado: '+c.nombre)}catch(_){toast('No se pudo quitar.')}};
+      box.appendChild(d);
+    });
+  }
+  const syncIG=()=>{const u=$('i-unidad').value;$('i-g-lbl').hidden=!(u==='ud'||u==='l');$('i-g-txt').textContent=u==='l'?'Peso por litro (g)':'Peso por unidad (g)';if(u==='l'&&$('i-g').value==='')$('i-g').value=1000;};
+  $('i-unidad').addEventListener('change',syncIG);
+  $('i-add').onclick=async()=>{
+    const nombre=$('i-nombre').value.trim(),precio=parseFloat($('i-precio').value);
+    if(!nombre||isNaN(precio)){toast('Escribe el nombre y el precio.');return;}
+    const ex=buscarCat(nombre);
+    try{await guardarDoc('ingredientes',ex?ex.id:nuevoId(),{nombre,unidad:$('i-unidad').value,precio,g:($('i-unidad').value==='ud'||$('i-unidad').value==='l')?(parseFloat($('i-g').value)||0):null,ejemplo:false});
+      toast((ex?'Actualizado: ':'Añadido: ')+nombre);$('i-nombre').value='';$('i-precio').value='';$('i-g').value='';}
+    catch(e){toast('No se pudo guardar. Inténtalo de nuevo.');}
+  };
+
+  // ---------- descargas ----------
+  const ordenados=()=>[...productos].sort((a,b)=>a.tipo.localeCompare(b.tipo)||a.nombre.localeCompare(b.nombre,'es'));
+  async function bajar(filename,data){
+    if(!downloads){toast('Las descargas no están disponibles en esta vista.');return;}
+    try{await downloads.save({filename,data});}catch(e){if(e&&e.code!=='declined')toast('No se pudo descargar el archivo.');}
+  }
+  $('dl-csv').onclick=()=>{
+    const n=x=>x==null||!isFinite(x)?'':String(x.toFixed(2)).replace('.',',');
+    const q=s=>'"'+String(s).replace(/"/g,'""')+'"';
+    const lines=[['Producto','Tipo','Coste €/kg','PVP €/kg','Vendido por','Peso unidad (g)','PVP unidad','Margen %','Coste lote €','Minutos de trabajo'].join(';')];
+    ordenados().forEach(p=>lines.push([q(p.nombre),p.tipo==='c'?'Comprado':'Elaborado',n(p.costeKg),n(p.pvpKg),VLBL[p.venta||'kg'],p.gramos||'',n(p.pvpUd),String(p.margen).replace('.',','),n(p.costeLote),p.minutos??''].join(';')));
+    bajar('precios-carniceria.csv','﻿'+lines.join('\r\n'));
+  };
+  $('dl-cartel').onclick=()=>{
+    const fecha=new Date().toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'});
+    const grp=t=>ordenados().filter(p=>p.tipo===t).map(p=>`<tr><td>${esc(p.nombre)}</td><td>${p.venta&&p.venta!=='kg'&&p.pvpUd!=null?eur(p.pvpUd)+' <small>/'+VLBL[p.venta]+' '+p.gramos+' g</small>':''}</td><td>${eur(p.pvpKg)}</td></tr>`).join('');
+    const sec=(t,h)=>{const r=grp(t);return r?`<h2>${h}</h2><table><thead><tr><th>Producto</th><th>Por unidad</th><th>€/kg</th></tr></thead><tbody>${r}</tbody></table>`:''};
+    const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Lista de precios</title><style>
+body{font-family:Georgia,serif;margin:2cm;color:#111}h1{font-size:30pt;margin:0 0 4pt}p{margin:0 0 18pt;color:#555}
+h2{font-size:15pt;text-transform:uppercase;letter-spacing:.1em;border-bottom:2px solid #8c1c2b;color:#8c1c2b;margin:22pt 0 6pt}
+table{width:100%;border-collapse:collapse;font-size:15pt}th{text-align:left;font-size:10pt;color:#777;font-weight:normal;padding:4pt 0}
+td{padding:7pt 0;border-bottom:1px dotted #aaa}td:nth-child(2),td:nth-child(3),th:nth-child(2),th:nth-child(3){text-align:right}td:nth-child(3){font-weight:bold;width:24%}small{color:#777;font-size:10pt}
+@page{margin:1.5cm}</style></head><body><h1>Lista de precios</h1><p>IVA incluido · ${fecha}</p>${sec('e','Elaboración propia')}${sec('c','Carnes y productos')}</body></html>`;
+    bajar('lista-precios.html',html);
+  };
+
+  // ---------- avisos de cambios de precio ----------
+  const norm=x=>(x||'').trim().toLowerCase();
+  const flecha=p=>p>0?'▲ +'+nf(p,1)+' %':'▼ '+nf(p,1)+' %';
+  const cls=p=>p>0?'up':'down';
+  // recetas elaboradas que usan alguno de esos ingredientes, con su coste recalculado
+  function impactoRecetas(nuevos){ // nuevos: Map nombreNormalizado -> precio
+    const out=[];
+    productos.filter(p=>p.tipo==='e'&&p.datos).forEach(p=>{
+      let d=JSON.parse(JSON.stringify(p.datos));if(!d.carnes&&d.ings)d=convertir(d);
+      const items=[...(d.carnes||[]),...(d.adds||[])];
+      if(!items.some(i=>nuevos.has(norm(i.nombre))))return;
+      (d.carnes||[]).forEach(c=>{const n=norm(c.nombre);if(nuevos.has(n))c.precio=nuevos.get(n);else{const k=buscarCat(c.nombre);if(k&&k.unidad==='kg')c.precio=k.precio;}});
+      (d.adds||[]).forEach(a=>{const n=norm(a.nombre);if(nuevos.has(n))a.precio=nuevos.get(n);else{const k=buscarCat(a.nombre);if(k&&PRECIO_UN[a.unidad]===k.unidad)a.precio=k.precio;}});
+      const r=calcular(d), iva=(d.iva??10)/100, sin=p.pvpKg/(1+iva);
+      if(!isFinite(r.costeKg))return;
+      out.push({p,d,antes:p.costeKg,ahora:r.costeKg,mAntes:sin>0?(sin-p.costeKg)/sin*100:NaN,mAhora:sin>0?(sin-r.costeKg)/sin*100:NaN});
+    });
+    return out.filter(x=>Math.abs(x.ahora-x.antes)>=0.005);
+  }
+  function htmlImpacto(lista,conAbrir){
+    if(!lista.length)return '';
+    return '<div class="sub">Recetas afectadas</div>'+lista.map((x,i)=>{const pc=(x.ahora-x.antes)/x.antes*100;
+      return `<div class="ch"><span>${esc(x.p.nombre)}</span><b class="${cls(pc)}">${eur(x.antes)} → ${eur(x.ahora)}/kg</b>
+        <small>Coste ${flecha(pc)} · con tu PVP de ${eur(x.p.pvpKg)}/kg el margen pasa de ${nf(x.mAntes,1)} % a ${nf(x.mAhora,1)} %</small>
+        ${conAbrir?`<button type="button" class="ab" data-i="${i}">Abrir receta y revisar el precio</button>`:''}</div>`;}).join('');
+  }
+  async function registrarCambio(c){
+    const doc={...c,fecha:Date.now(),quien:uid||null};
+    if(db){try{await db.collection('cambios').add(doc);}catch(e){}}
+    else{cambios.unshift({...doc,id:nuevoId()});local.set('cambios',cambios.slice(0,200));pintarAvisos();}
+  }
+  const fecha=t=>new Date(t).toLocaleDateString('es-ES',{day:'numeric',month:'short'})+' '+new Date(t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  const quienTxt=c=>c.quien&&c.quien===uid?'tú':(c.quien&&nombres[c.quien])||'un socio';
+  function filaCambio(c){
+    return `<div class="ch${Math.abs(c.pct)>=5?' big':''}"><span>${esc(c.nombre)}</span><b class="${cls(c.pct)}">${eur(c.antes)} → ${eur(c.ahora)}/${esc(c.unidad||'kg')}</b>
+      <small>${flecha(c.pct)} · ${fecha(c.fecha)} · ${c.origen==='factura'?'factura'+(c.proveedor?' de '+esc(c.proveedor):''):'cambio a mano'} · por ${esc(quienTxt(c))}</small></div>`;
+  }
+  async function resolverNombres(){
+    if(!usr)return;const ids=[...new Set(cambios.map(c=>c.quien).filter(x=>x&&x!==uid&&!(x in nombres)))];
+    if(!ids.length)return;try{const ps=await usr.profiles(ids);ids.forEach(id=>{nombres[id]=(ps[id]&&ps[id].name)||'un socio';});}catch(e){}
+  }
+  async function pintarAvisos(){
+    await resolverNombres();
+    $('hist').innerHTML=cambios.length?cambios.slice(0,20).map(filaCambio).join(''):'<div class="empty">Todavía no hay cambios de precio. Aparecerán aquí al leer facturas o cambiar un precio.</div>';
+    const nuevos=cambios.filter(c=>c.fecha>visto&&c.quien!==uid);
+    const box=$('avisos');
+    if(!nuevos.length){box.innerHTML='';return;}
+    const up=nuevos.filter(c=>c.pct>0).length, dn=nuevos.filter(c=>c.pct<0).length;
+    const mapa=new Map();catalogo.forEach(k=>mapa.set(norm(k.nombre),k.precio));
+    const imp=impactoRecetas(new Map(nuevos.filter(c=>c.tipo==='ing').map(c=>[norm(c.nombre),mapa.get(norm(c.nombre))??c.ahora])));
+    box.innerHTML=`<h3>Cambios de precio desde tu última visita</h3>
+      <div class="cnt">${up?`<span class="up">▲ Suben ${up}</span>`:''}${dn?`<span class="down">▼ Bajan ${dn}</span>`:''}</div>
+      <div>${nuevos.slice(0,10).map(filaCambio).join('')}</div>${htmlImpacto(imp,true)}
+      <div class="btns"><button class="btn" id="av-ok" type="button">Entendido</button></div>`;
+    box.querySelectorAll('.ab').forEach(b=>b.onclick=()=>cargar(JSON.parse(JSON.stringify(imp[+b.dataset.i].p.datos))));
+    $('av-ok').onclick=async()=>{visto=Math.max(...cambios.map(c=>c.fecha));box.innerHTML='';
+      try{localStorage.setItem('carn-visto',String(visto))}catch(e){}
+      if(db&&uid){try{await db.collection('data/users/'+uid).doc('estado').set({visto});}catch(e){}}};
+  }
+
+  // ---------- facturas ----------
+  let sample=null, maxFotos=5, fotos=[], lineas=[], ctl=null;
+  const ERR={not_granted:'No has dado permiso a Claude para leer la factura. Vuelve a abrir la página y acéptalo.',rate_limited:'Demasiadas lecturas seguidas. Espera un minuto y vuelve a probar.',
+    image_rejected:'No se pudo usar una de las fotos. Prueba con otra foto más clara.',invalid_json:'No se pudo leer bien la factura. Prueba con una foto más recta y con más luz.',
+    refused:'Claude no pudo leer esta imagen. Comprueba que es una factura.',session_expired:'Tu sesión ha caducado. Recarga la página.',prompt_too_large:'Hay demasiados datos. Prueba con menos fotos a la vez.'};
+  const errTxt=e=>ERR[e&&e.code]||'No se pudo leer la factura. Inténtalo de nuevo.';
+  function estado(t,err){$('f-stat').textContent=t;$('f-stat').classList.toggle('err',!!err);}
+  function pintarFotos(){
+    $('f-thumbs').innerHTML='';
+    fotos.forEach((f,i)=>{const d=document.createElement('div');const img=document.createElement('img');img.alt='Foto '+(i+1)+' de la factura';img.src=f.url;
+      const b=document.createElement('button');b.type='button';b.textContent='×';b.setAttribute('aria-label','Quitar foto');b.onclick=()=>{URL.revokeObjectURL(f.url);fotos.splice(i,1);pintarFotos();};
+      d.append(img,b);$('f-thumbs').appendChild(d);});
+    $('f-leer').disabled=!fotos.length;
+  }
+  async function reducir(file){
+    try{const bmp=await createImageBitmap(file);const k=Math.min(1,2000/Math.max(bmp.width,bmp.height));
+      const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+      return await new Promise(res=>c.toBlob(b=>res(b||file),'image/jpeg',0.85));}catch(e){return file;}
+  }
+  $('f-file').addEventListener('change',async e=>{
+    const max=maxFotos;
+    for(const file of [...e.target.files]){if(fotos.length>=max){toast('Máximo '+max+' fotos por factura.');break;}const b=await reducir(file);fotos.push({blob:b,url:URL.createObjectURL(b)});}
+    e.target.value='';pintarFotos();
+  });
+  function promptFactura(){
+    const ings=catalogo.map(c=>`ing:${c.id} | ${c.nombre} | ${c.unidad} | ${c.precio}`).join('\n')||'(ninguno)';
+    const coms=productos.filter(p=>p.tipo==='c').map(p=>`com:${p.id} | ${p.nombre} | ${p.datos&&p.datos.compra!=null?p.datos.compra:''} €/kg`).join('\n')||'(ninguno)';
+    return `Trabajas para una carnicería en España. Lee las fotos de una factura de proveedor (pueden ser varias páginas de la misma factura) y extrae cada línea de producto.
+
+Ingredientes y materiales que la tienda ya tiene guardados (id | nombre | unidad | precio actual sin IVA):
+${ings}
+
+Productos que la tienda compra para revender (id | nombre | precio de compra actual):
+${coms}
+
+Responde solo con un objeto JSON con esta forma:
+{"proveedor":"nombre del proveedor o vacío","fecha":"fecha de la factura o vacío","lineas":[{"texto":"descripción tal cual aparece en la factura","nombre":"nombre claro y corto para la tienda","cantidad":12.5,"unidad":"kg","precio":5.45,"coincide":"ing:ID o com:ID o null","tipo_nuevo":"ingrediente o comprado"}]}
+
+Reglas:
+- "precio" es el precio por unidad (por kg si se vende a peso) SIN IVA y después de descuentos. Si solo aparece el importe de la línea, divídelo entre la cantidad.
+- "unidad" solo puede ser "kg", "l", "ud" o "m".
+- No incluyas portes, recargos, envases retornables, bases imponibles ni totales.
+- "coincide" solo cuando sea claramente el mismo producto que uno de las listas; si dudas, null.
+- "tipo_nuevo": "comprado" para carne o producto que se vende tal cual en el mostrador; "ingrediente" para especias, tripa, condimentos, envases o materia prima para elaborados.
+- Números con punto decimal, sin símbolo de euro.`;
+  }
+  const UNLBL={kg:'€/kg',l:'€/l',ud:'€/ud',m:'€/m'};
+  function opciones(sel){
+    const ing=[...catalogo].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(c=>`<option value="ing:${c.id}"${sel==='ing:'+c.id?' selected':''}>${esc(c.nombre)} (${eur(c.precio)}/${c.unidad})</option>`).join('');
+    const com=productos.filter(p=>p.tipo==='c').sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(p=>`<option value="com:${p.id}"${sel==='com:'+p.id?' selected':''}>${esc(p.nombre)}</option>`).join('');
+    return `<optgroup label="Crear nuevo"><option value="new-ing"${sel==='new-ing'?' selected':''}>Crear ingrediente nuevo</option><option value="new-com"${sel==='new-com'?' selected':''}>Crear producto comprado nuevo</option></optgroup>`
+      +(ing?`<optgroup label="Actualizar precio de ingrediente">${ing}</optgroup>`:'')
+      +(com?`<optgroup label="Actualizar producto comprado">${com}</optgroup>`:'')
+      +`<optgroup label="Otro"><option value="skip"${sel==='skip'?' selected':''}>No hacer nada</option></optgroup>`;
+  }
+  function precioActual(acc){
+    if(acc.startsWith('ing:')){const c=catalogo.find(x=>'ing:'+x.id===acc);return c?{v:c.precio,u:c.unidad}:null;}
+    if(acc.startsWith('com:')){const p=productos.find(x=>'com:'+x.id===acc);return p&&p.datos?{v:p.datos.compra,u:'kg'}:null;}
+    return null;
+  }
+  function resumenFactura(){
+    const box=$('f-alerta');const cs=[];const nuevos=new Map();const coms=[];
+    lineas.forEach(l=>{if(l.acc==='skip'||!(l.precio>0))return;const a=precioActual(l.acc);if(!a||!a.v||Math.abs(l.precio-a.v)<0.005)return;
+      const pct=(l.precio-a.v)/a.v*100;
+      if(l.acc.startsWith('ing:')){const c=catalogo.find(x=>'ing:'+x.id===l.acc);cs.push({nombre:c.nombre,antes:a.v,ahora:l.precio,unidad:l.unidad,pct});nuevos.set(norm(c.nombre),l.precio);}
+      else{const p=productos.find(x=>'com:'+x.id===l.acc);cs.push({nombre:p.nombre,antes:a.v,ahora:l.precio,unidad:'kg',pct});
+        const doc=docDeProducto({...JSON.parse(JSON.stringify(p.datos)),compra:l.precio});coms.push({p,doc});}});
+    if(!cs.length){box.innerHTML=lineas.length?'<h3>Sin cambios en los precios que ya tenías</h3>':'';return;}
+    const up=cs.filter(c=>c.pct>0).length,dn=cs.length-up;
+    const imp=impactoRecetas(nuevos);
+    box.innerHTML=`<h3>Atención: esta factura cambia ${cs.length} precio${cs.length>1?'s':''}</h3>
+      <div class="cnt">${up?`<span class="up">▲ Suben ${up}</span>`:''}${dn?`<span class="down">▼ Bajan ${dn}</span>`:''}</div>
+      <div>${cs.sort((a,b)=>b.pct-a.pct).map(c=>`<div class="ch${Math.abs(c.pct)>=5?' big':''}"><span>${esc(c.nombre)}</span><b class="${cls(c.pct)}">${eur(c.antes)} → ${eur(c.ahora)}/${c.unidad}</b><small>${flecha(c.pct)}</small></div>`).join('')}</div>
+      ${coms.length?'<div class="sub">Nuevo PVP si mantienes el margen</div>'+coms.map(x=>`<div class="ch"><span>${esc(x.p.nombre)}</span><b>${eur(x.p.pvpKg)} → ${eur(x.doc.pvpKg)}/kg</b></div>`).join(''):''}
+      ${htmlImpacto(imp,false)}`;
+  }
+  function pintarLineas(){
+    const box=$('f-lineas');box.innerHTML='';
+    lineas.forEach((l,i)=>{
+      const d=document.createElement('div');d.className='fl';
+      d.innerHTML=`<div class="raw"></div>
+        <div class="g3"><input class="nm" id="fl-n-${i}" type="text" aria-label="Nombre del artículo">
+        <input class="pr" id="fl-p-${i}" type="number" step="0.01" min="0" aria-label="Precio sin IVA">
+        <select class="un" id="fl-u-${i}" aria-label="Unidad"><option value="kg">€/kg</option><option value="l">€/l</option><option value="ud">€/ud</option><option value="m">€/m</option></select></div>
+        <select class="acc" id="fl-a-${i}" aria-label="Qué hacer con esta línea">${opciones(l.acc)}</select>
+        <p class="diff"></p>`;
+      d.querySelector('.raw').textContent=(l.texto||'')+(l.cantidad?' · '+nf(l.cantidad,2)+' '+l.unidad:'');
+      d.querySelector('.nm').value=l.nombre;d.querySelector('.pr').value=l.precio;d.querySelector('.un').value=l.unidad;
+      const upd=()=>{l.nombre=d.querySelector('.nm').value.trim();l.precio=parseFloat(d.querySelector('.pr').value)||0;l.unidad=d.querySelector('.un').value;l.acc=d.querySelector('.acc').value;
+        d.classList.toggle('skip',l.acc==='skip');const df=d.querySelector('.diff');df.className='diff';
+        const a=precioActual(l.acc);
+        if(a&&isFinite(a.v)){const pct=a.v?(l.precio-a.v)/a.v*100:0;df.textContent=`Antes ${eur(a.v)} → ahora ${eur(l.precio)} ${UNLBL[a.u]||''}`+(a.v?` (${pct>0?'+':''}${nf(pct,1)} %)`:'');if(pct>0.05)df.classList.add('up');else if(pct<-0.05)df.classList.add('down');}
+        else if(l.acc==='new-ing') df.textContent='Se añadirá a tu lista de ingredientes.';
+        else if(l.acc==='new-com') df.textContent='Se creará como producto comprado (merma 0 %, margen 35 %). Ábrelo después para ajustar la merma.';
+        else df.textContent='Esta línea no se guardará.';};
+      d.querySelectorAll('input,select').forEach(x=>x.addEventListener('input',()=>{upd();resumenFactura();}));upd();
+      box.appendChild(d);
+    });
+    $('f-apl-row').hidden=!lineas.length;resumenFactura();
+  }
+  $('f-leer').onclick=async()=>{
+    if(!sample||!fotos.length)return;
+    ctl=new AbortController();$('f-leer').disabled=true;$('f-stop').hidden=false;$('f-res').innerHTML='';
+    lineas=[];pintarLineas();$('f-head').hidden=true;
+    estado('Leyendo la factura… puede tardar hasta un minuto.');
+    try{
+      const r=await sample.json(promptFactura(),{images:fotos.map(f=>f.blob),signal:ctl.signal,modelTier:'default',cache:false});
+      const ls=Array.isArray(r&&r.lineas)?r.lineas:[];
+      if(!ls.length){estado('No he encontrado líneas de producto en la foto. Prueba con una foto más clara.',true);return;}
+      const ok=v=>['kg','l','ud','m'].includes(v)?v:'kg';
+      lineas=ls.map(x=>{const nombre=String(x.nombre||x.texto||'').trim();let acc=typeof x.coincide==='string'?x.coincide:'';
+        if(!precioActual(acc)){const c=buscarCat(nombre);const p=productos.find(p=>p.tipo==='c'&&p.nombre.toLowerCase()===nombre.toLowerCase());acc=c?'ing:'+c.id:p?'com:'+p.id:(x.tipo_nuevo==='comprado'?'new-com':'new-ing');}
+        return {texto:String(x.texto||''),nombre,cantidad:+x.cantidad||0,unidad:ok(x.unidad),precio:Math.round((+x.precio||0)*100)/100,acc};});
+      facturaProv=String(r.proveedor||'').trim();const h=[r.proveedor,r.fecha].filter(Boolean).join(' · ');$('f-head').textContent=(h?h+' · ':'')+lineas.length+' líneas. Revisa cada una y pulsa «Aplicar cambios».';$('f-head').hidden=false;
+      estado('');pintarLineas();
+    }catch(e){if(e&&e.code==='cancelled')estado('Lectura cancelada.');else estado(errTxt(e),true);}
+    finally{$('f-leer').disabled=!fotos.length;$('f-stop').hidden=true;}
+  };
+  $('f-stop').onclick=()=>ctl&&ctl.abort();
+  $('f-desc').onclick=()=>{lineas=[];pintarLineas();$('f-head').hidden=true;estado('');};
+  function docDeProducto(d){
+    const r=calcular(d);
+    return {tipo:'c',nombre:d.nombre,costeKg:+r.costeKg.toFixed(2),pvpKg:+r.pvpKg.toFixed(2),venta:d.venta.tipo,pvpUd:r.pvpUd!=null?+r.pvpUd.toFixed(2):null,
+      gramos:d.venta.tipo==='kg'?null:d.venta.gramos,margen:+(r.margenReal||0).toFixed(1),costeLote:null,minutos:null,datos:d,actualizado:Date.now()};
+  }
+  $('f-aplicar').onclick=async()=>{
+    const hechos=[];let fallos=0;$('f-aplicar').disabled=true;const nuevosIng=new Map();
+    for(const l of lineas){
+      if(l.acc==='skip'||!l.nombre||!(l.precio>0))continue;
+      try{
+        if(l.acc.startsWith('ing:')){const c=catalogo.find(x=>'ing:'+x.id===l.acc);if(!c)continue;
+          await guardarDoc('ingredientes',c.id,{nombre:c.nombre,unidad:l.unidad,precio:l.precio,g:c.g??null,ejemplo:false});
+          hechos.push(`${c.nombre}: ${eur(c.precio)} → ${eur(l.precio)}/${l.unidad}`);
+          if(c.precio&&Math.abs(l.precio-c.precio)>=0.005){nuevosIng.set(norm(c.nombre),l.precio);registrarCambio({tipo:'ing',nombre:c.nombre,antes:c.precio,ahora:l.precio,unidad:l.unidad,pct:(l.precio-c.precio)/c.precio*100,origen:'factura',proveedor:facturaProv});}}
+        else if(l.acc.startsWith('com:')){const p=productos.find(x=>'com:'+x.id===l.acc);if(!p||!p.datos)continue;
+          const d={...JSON.parse(JSON.stringify(p.datos)),compra:l.precio};const doc=docDeProducto(d);
+          await guardarDoc('productos',p.id,doc);
+          hechos.push(`${p.nombre}: compra ${eur(p.datos.compra)} → ${eur(l.precio)}/kg · PVP ${eur(p.pvpKg)} → ${eur(doc.pvpKg)}/kg`);
+          if(p.datos.compra&&Math.abs(l.precio-p.datos.compra)>=0.005)registrarCambio({tipo:'com',nombre:p.nombre,antes:p.datos.compra,ahora:l.precio,unidad:'kg',pct:(l.precio-p.datos.compra)/p.datos.compra*100,origen:'factura',proveedor:facturaProv});}
+        else if(l.acc==='new-ing'){
+          await guardarDoc('ingredientes',nuevoId(),{nombre:l.nombre,unidad:l.unidad,precio:l.precio,g:l.unidad==='l'?1000:null,ejemplo:false});
+          hechos.push(`Nuevo ingrediente: ${l.nombre} · ${eur(l.precio)}/${l.unidad}`);}
+        else if(l.acc==='new-com'){
+          const d={tipo:'c',nombre:l.nombre,compra:l.precio,merma:0,otros:0,margen:35,tipoMargen:'venta',iva:10,redondeo:0.1,venta:{tipo:'kg',gramos:150,envase:0.05}};
+          const doc=docDeProducto(d);await guardarDoc('productos',nuevoId(),doc);
+          hechos.push(`Nuevo producto: ${l.nombre} · compra ${eur(l.precio)}/kg · PVP ${eur(doc.pvpKg)}/kg`);}
+      }catch(e){fallos++;}
+    }
+    $('f-aplicar').disabled=false;
+    const imp=nuevosIng.size?impactoRecetas(nuevosIng):[];
+    $('f-res').innerHTML=hechos.length?'<b>Cambios guardados</b>'+hechos.map(h=>`<div>${esc(h)}</div>`).join('')+(imp.length?`<div style="margin-top:8px"><b>Revisa estas recetas:</b> su coste ha cambiado y su PVP guardado sigue igual.</div>`+imp.map(x=>`<div>${esc(x.p.nombre)}: coste ${eur(x.antes)} → ${eur(x.ahora)}/kg · margen ${nf(x.mAntes,1)} % → ${nf(x.mAhora,1)} %</div>`).join(''):''):'';
+    if(fallos)estado(fallos+' línea'+(fallos>1?'s no se pudieron':' no se pudo')+' guardar. Comprueba la conexión y vuelve a aplicar.',true);
+    else{lineas=[];pintarLineas();$('f-head').hidden=true;fotos.forEach(f=>URL.revokeObjectURL(f.url));fotos=[];pintarFotos();estado(hechos.length?'':'No había cambios que guardar.');}
+    if(hechos.length)toast(hechos.length+' cambio'+(hechos.length>1?'s':'')+' guardado'+(hechos.length>1?'s':''));
+  };
+
+  // ---------- arranque ----------
+  [{nombre:'Carne picada mixta',porKg:1000,unidad:'g',precio:7.8},{nombre:'Huevo',porKg:2,unidad:'ud',precio:0.25,g:50},{nombre:'Especias para hamburguesa',porKg:60,unidad:'g',precio:20},{nombre:'Ajo',porKg:50,unidad:'g',precio:4},{nombre:'Pan rallado',porKg:40,unidad:'g',precio:2.5}].forEach(addIng);
+  [{nombre:'Picar y mezclar',min:40},{nombre:'Formar hamburguesas',min:120},{nombre:'Envasar y etiquetar',min:60}].forEach(addTask);
+  calc();
+
+  try{visto=+localStorage.getItem('carn-visto')||0}catch(e){}
+  // fuera de Claude: descargas con el navegador
+  const bajarNav={async save({filename,data}){const b=data instanceof Blob?data:new Blob([data],{type:/\.csv$/i.test(filename)?'text/csv;charset=utf-8':/\.html?$/i.test(filename)?'text/html;charset=utf-8':'application/octet-stream'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}};
+  function verLocal(){
+    productos=local.get('productos');catalogo=local.get('ingredientes');cambios=local.get('cambios');pintarAvisos();
+    $('sync').textContent='Guardado solo en este dispositivo';refrescar();
+  }
+  (async()=>{
+    if(!window.claude||!window.claude.use){$('f-off').hidden=false;$('f-on').hidden=true;downloads=bajarNav;verLocal();return;}
+    try{downloads=await window.claude.use('downloads');}catch(e){downloads=null}
+    if(!downloads){$('dl-csv').disabled=$('dl-cartel').disabled=true;}
+    try{const sm=await window.claude.use('sample');const lim=sm?await sm.limits().catch(()=>null):null;
+      if(sm&&lim&&lim.images){sample=sm;maxFotos=lim.images.maxCount||5;}}catch(e){}
+    if(!sample){$('f-off').hidden=false;$('f-on').hidden=true;}
+    let d=null;try{d=await window.claude.use('db');}catch(e){}
+    if(!d){verLocal();return;}
+    db=d;$('sync').textContent='Sincronizado en todos tus dispositivos';$('sync').classList.add('ok');
+    const err=()=>{$('sync').textContent='Sin conexión: los cambios no se guardan';$('sync').classList.remove('ok');};
+    db.collection('productos').onSnapshot(s=>{productos=s.docs.map(x=>({...x.data(),id:x.id}));renderLista();},err);
+    db.collection('ingredientes').onSnapshot(s=>{catalogo=s.docs.map(x=>({...x.data(),id:x.id}));renderCatalogo();},err);
+    try{usr=await window.claude.use('user');uid=usr?await usr.id():null;}catch(e){usr=null;uid=null;}
+    if(uid){try{const e=await db.collection('data/users/'+uid).doc('estado').get();if(e.exists)visto=Math.max(visto,+(e.data().visto)||0);}catch(e){}}
+    db.collection('cambios').orderBy('fecha','desc').limit(100).onSnapshot(s=>{cambios=s.docs.map(x=>({...x.data(),id:x.id}));pintarAvisos();},err);
+  })().catch(verLocal);
+})();
+</script>
+
+</body></html>
