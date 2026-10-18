@@ -82,7 +82,7 @@
     const user=await new Promise(ok=>{let pedido=false;A.onAuthStateChanged(auth,u=>{if(u){quitarLogin();ok(u)}else if(!pedido){pedido=true;pedirLogin(auth,A)}else location.reload()})});
     botonSalir(auth,A,user);botonImportar(F,fs);
     F.setDoc(F.doc(fs,USUARIOS,user.uid),{nombre:(user.displayName||user.email||'').split('@')[0],email:user.email||''},{merge:true}).catch(()=>{});
-    return{F,fs,user};
+    return{F,fs,user,fb};
   })();
   listo.catch(e=>{fallo=e;console.error(e)});
 
@@ -106,6 +106,19 @@
   window.claude={use:async nombre=>{
     if(nombre==='downloads')return descargas;
     if(nombre==='db'){const x=await listo;return hacerDb(x)}
+    if(nombre==='assets'){
+      // fotos de facturas en Firebase Storage; se activa en firebase-config.js cuando Storage está creado
+      if(!window.FIREBASE_FOTOS)throw Object.assign(new Error('Fotos no activadas'),{code:'not_granted'});
+      const x=await listo;const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
+      return{async upload(blob,o){
+          if(blob.size>20*1024*1024)throw Object.assign(new Error('grande'),{code:'too_large'});
+          const tipo=(o&&o.type)||blob.type||'image/jpeg',ext=tipo==='application/pdf'?'pdf':'jpg';
+          const r=S.ref(st,RAIZ+'fotos/'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'.'+ext);
+          try{await S.uploadBytes(r,blob,{contentType:tipo})}
+          catch(e){avisar(e);throw Object.assign(new Error(e.message),{code:e.code==='storage/quota-exceeded'?'quota_or_state':e.code})}
+          return{id:await S.getDownloadURL(r)}},
+        delete:async id=>{await S.deleteObject(S.ref(st,id))}};
+    }
     if(nombre==='user'){const x=await listo;const{F,fs,user}=x;return{id:async()=>user.uid,
       profiles:async ids=>{const o={};await Promise.all(ids.map(async id=>{try{const s=await F.getDoc(F.doc(fs,USUARIOS,id));if(s.exists())o[id]={name:s.data().nombre}}catch(e){}}));return o}}}
     throw Object.assign(new Error('No disponible fuera de Claude'),{code:'not_granted'});

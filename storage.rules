@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Solo estas cuentas pueden subir, ver y borrar las fotos de facturas.
+    function permitido() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'llanastomas@gmail.com',
+          'maryjosellanas@gmail.com',
+          'alvarollanasmartinez@hotmail.com'
+        ];
+    }
+    match /negocio/{app}/fotos/{archivo} {
+      allow read, delete: if permitido();
+      // fotos o PDF de hasta 20 MB
+      allow create, update: if permitido()
+        && request.resource.size < 20 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+    }
+  }
+}

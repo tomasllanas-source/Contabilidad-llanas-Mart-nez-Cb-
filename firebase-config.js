@@ -11,3 +11,5 @@ window.FIREBASE_CONFIG={
   messagingSenderId:"560123601204",
   appId:"1:560123601204:web:1a11b3844b4ff067e10561"
 };
+// Fotos de facturas (Firebase Storage). Pon true cuando Storage esté creado en la consola.
+window.FIREBASE_FOTOS=false;

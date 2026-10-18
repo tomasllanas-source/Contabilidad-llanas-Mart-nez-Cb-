@@ -23,6 +23,9 @@ Sin configurar, cada página guarda solo en el navegador del dispositivo. Para q
 3. **Crea la base de datos.** Ve a **Firestore Database** → *Crear base de datos* (ubicación `eur3` o `europe-southwest1`, modo producción).
 4. **Pon las reglas.** En **Firestore** → **Reglas**, pega el contenido de `firestore.rules` con vuestros correos en la lista, y publica.
 
+**Fotos de facturas (opcional, plan Blaze):** en **Storage** → *Comenzar*, crea el almacén y pega `storage.rules` en la pestaña **Reglas**. Después pon `window.FIREBASE_FOTOS=true` en `firebase-config.js`. Para que funcione «Descargar carpeta (ZIP)», el almacén necesita permitir descargas desde la web (CORS). Desde Cloud Shell:
+`echo '[{"origin":["https://tomasllanas-source.github.io"],"method":["GET"],"maxAgeSeconds":3600}]' > cors.json && gcloud storage buckets update gs://contabilidad-llanas.firebasestorage.app --cors-file=cors.json`
+
 Cada página guarda sus datos aparte en Firestore (`negocio/contabilidad`, `negocio/calculadora` y `negocio/inventario`). Las páginas funcionan sin cobertura: los cambios se suben solos al volver la conexión.
 
 ## Importante: dónde se guardan los datos
@@ -30,4 +33,4 @@ Cada página guarda sus datos aparte en Firestore (`negocio/contabilidad`, `nego
 - Sin Firebase configurado, los apuntes se guardan **solo en el navegador de cada dispositivo** (localStorage). No se comparten entre el móvil y el ordenador, y se pierden si borras los datos del navegador. Con Firebase se guardan en tu proyecto, pero lo apuntado antes solo en el navegador no se sube solo.
 - Descarga el CSV de cada periodo con regularidad como copia de seguridad.
 - Haz copias con las descargas: CSV en la contabilidad y en la calculadora.
-- Solo funcionan dentro de Claude (los artefactos originales): el archivo de fotos de facturas y la lectura automática de facturas (pestaña «Factura» de la calculadora y fotos de gastos en la contabilidad).
+- Solo funcionan dentro de Claude (los artefactos originales): la lectura automática de facturas con IA (pestaña «Factura» de la calculadora y relleno automático de gastos en la contabilidad).

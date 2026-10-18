@@ -741,7 +741,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     $('g-filtro').querySelectorAll('button').forEach(b=>b.onclick=()=>{filtroCat=b.dataset.f;renderGastos()});
     const f=g.filter(x=>filtroCat==='todas'||(filtroCat==='pend'?!x.pagado:x.cat===filtroCat)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     $('g-sum').textContent=eur(sum(f,'total'));
-    $('g-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.proveedor||x.concepto||x.cat)}</div><div class="meta">${fechaCorta(x.fecha)}${x.fechaFactura&&x.fechaFactura!==x.fecha?' · factura del '+fechaCorta(x.fechaFactura):''}${x.concepto&&x.proveedor?' · '+esc(x.concepto):''} <span class="badge">${esc(x.cat.replace(/ \(.*\)/,''))}</span>${x.pagado?'':'<span class="badge pend">Pendiente</span>'}${x.ej?'<span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>${x.pct==='mixto'?'IVA mixto':x.pct?'IVA '+x.pct+' %':'sin IVA'}</small></div>${x.ej?'':`<div class="acts">${x.foto?`<a href="/_blob/${esc(x.foto)}" target="_blank" rel="noopener">Ver factura</a>`:''}${x.pagado?'':`<button data-pag="${x.id}">Marcar pagado</button>`}<button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay gastos aquí. Apunta cada factura arriba cuando te llegue.</div>';
+    $('g-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.proveedor||x.concepto||x.cat)}</div><div class="meta">${fechaCorta(x.fecha)}${x.fechaFactura&&x.fechaFactura!==x.fecha?' · factura del '+fechaCorta(x.fechaFactura):''}${x.concepto&&x.proveedor?' · '+esc(x.concepto):''} <span class="badge">${esc(x.cat.replace(/ \(.*\)/,''))}</span>${x.pagado?'':'<span class="badge pend">Pendiente</span>'}${x.ej?'<span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>${x.pct==='mixto'?'IVA mixto':x.pct?'IVA '+x.pct+' %':'sin IVA'}</small></div>${x.ej?'':`<div class="acts">${x.foto?`<a href="${esc(urlBlob(x.foto))}" target="_blank" rel="noopener">Ver factura</a>`:''}${x.pagado?'':`<button data-pag="${x.id}">Marcar pagado</button>`}<button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay gastos aquí. Apunta cada factura arriba cuando te llegue.</div>';
     $('g-lista').querySelectorAll('[data-pag]').forEach(b=>b.onclick=()=>pagar(b.dataset.pag));
     $('g-lista').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>confirmarBorrar('gastos',b.dataset.del));
     $('g-lista').querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const x=gastos.find(y=>y.id===b.dataset.ed);if(!x)return;editId=x.id;
@@ -754,6 +754,8 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   // ---------- leer factura con foto ----------
   async function reducir(file){const img=await createImageBitmap(file);const k=Math.min(1,1600/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);return await new Promise(r=>c.toBlob(r,'image/jpeg',0.85))}
   const NOMC={gastos:'Gastos',facturas:'Facturas'};
+  // en Claude la foto es un id de su almacén; en la web, la dirección de Firebase Storage
+  const urlBlob=id=>/^https?:\/\//.test(id)?id:'/_blob/'+id;
   function setCarpeta(c){carpeta=c;$('g-carp').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===c));try{localStorage.setItem('cont-carpeta',c)}catch(e){}}
   // el género va a «Facturas» y el resto a «Gastos», salvo que se elija a mano
   const GENERO=['Género (carne)','Embutidos y otros productos','Ingredientes y especias'];
@@ -766,7 +768,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     $('g-foto-tit').textContent=assets?(sample?'Foto de la factura: se guarda en tu archivo y relleno los datos':'Foto de la factura: se guarda en tu archivo'):'¿Tienes la factura? Hazle una foto y relleno los datos.';
     if(fotoPend){box.innerHTML=miniatura(fotoPend.url,fotoPend.tipo)+`<span>${assets?'Se guardará en la carpeta <b>'+NOMC[carpeta]+'</b> al pulsar «Guardar».':'En esta vista la foto solo sirve para leer los datos; no se guarda.'}</span><button type="button" class="btn" id="g-foto-x">Quitar foto</button>`;
       $('g-foto-x').onclick=()=>{URL.revokeObjectURL(fotoPend.url);fotoPend=null;$('g-fstat').textContent='';pintarFotoForm()};}
-    else if(fotoActual){box.innerHTML=miniatura('/_blob/'+fotoActual.id,fotoActual.tipo)+`<span>Este gasto ya tiene su factura guardada. <a href="/_blob/${esc(fotoActual.id)}" target="_blank" rel="noopener">Verla</a>. Si eliges otra, se sustituye.</span>`;}
+    else if(fotoActual){box.innerHTML=miniatura(urlBlob(fotoActual.id),fotoActual.tipo)+`<span>Este gasto ya tiene su factura guardada. <a href="${esc(urlBlob(fotoActual.id))}" target="_blank" rel="noopener">Verla</a>. Si eliges otra, se sustituye.</span>`;}
     else box.innerHTML='';
     $('g-file-lbl').textContent=fotoPend||fotoActual?'Cambiar foto':'Hacer foto o elegir archivo';
   }
@@ -897,7 +899,7 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
     $('a-carp').querySelectorAll('button').forEach(b=>b.onclick=()=>{carpetaVista=b.dataset.c;renderArchivo()});
     const ls=todos.filter(x=>x.carpeta===carpetaVista);
     $('a-dl-w').hidden=!ls.length||!downloads;
-    $('a-lista').innerHTML=ls.length?ls.map(x=>{const key='a:'+x.k+x.id;return `<div class="doc"><a class="th" href="/_blob/${esc(x.foto)}" target="_blank" rel="noopener">${miniatura('/_blob/'+x.foto,x.tipo)}</a>
+    $('a-lista').innerHTML=ls.length?ls.map(x=>{const key='a:'+x.k+x.id;return `<div class="doc"><a class="th" href="${esc(urlBlob(x.foto))}" target="_blank" rel="noopener">${miniatura(urlBlob(x.foto),x.tipo)}</a>
       <div class="name">${esc(x.titulo)}</div><div class="meta">${fechaCorta(x.fecha)}${x.total?' · '+eur(x.total):''}</div>
       <div class="acts">${downloads?`<button data-dl="${esc(key)}">Descargar</button>`:''}${x.k==='d'||assets?`<button data-q="${esc(key)}" class="${borrarPend===key?'danger':''}">${borrarPend===key?'¿Seguro? Toca otra vez':'Quitar'}</button>`:''}</div></div>`}).join('')
       :`<div class="empty" style="grid-column:1/-1">No hay nada en la carpeta ${NOMC[carpetaVista]} en este periodo.${sinFotos?'':' Al guardar un gasto con su foto, aparece aquí.'}</div>`;
@@ -905,8 +907,8 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
     $('a-lista').querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>{const x=buscar(b.dataset.dl);if(x)bajarUno(x)});
     $('a-lista').querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{const x=buscar(b.dataset.q);if(x)quitarDoc(x,b.dataset.q)});
   }
-  async function blobDe(id){const r=await fetch('/_blob/'+id);if(!r.ok)throw new Error('no encontrado');return await r.blob()}
-  async function bajarUno(x){if(!downloads)return;try{await downloads.save({filename:nombreArchivo(x),data:await blobDe(x.foto)})}catch(e){if(!(e&&e.code==='declined'))toast('No se pudo descargar el archivo.')}}
+  async function blobDe(id){const r=await fetch(urlBlob(id));if(!r.ok)throw new Error('no encontrado');return await r.blob()}
+  async function bajarUno(x){if(!downloads)return;try{await downloads.save({filename:nombreArchivo(x),data:await blobDe(x.foto)})}catch(e){if(e&&e.code==='declined')return;if(/^https?:/.test(x.foto)){window.open(x.foto,'_blank');return}toast('No se pudo descargar el archivo.')}}
   async function quitarDoc(x,key){
     if(borrarPend!==key){borrarPend=key;renderArchivo();clearTimeout(quitarDoc.t);quitarDoc.t=setTimeout(()=>{borrarPend=null;renderArchivo()},4000);return}
     borrarPend=null;
