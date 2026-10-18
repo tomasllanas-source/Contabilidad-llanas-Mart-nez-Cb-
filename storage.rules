@@ -7,7 +7,8 @@ service firebase.storage {
         && request.auth.token.email in [
           'llanastomas@gmail.com',
           'maryjosellanas@gmail.com',
-          'alvarollanasmartinez@hotmail.com'
+          'alvarollanasmartinez@hotmail.com',
+          'maribelllanas1983@gmail.com'
         ];
     }
     match /negocio/{app}/fotos/{archivo} {
