@@ -11,5 +11,6 @@ window.FIREBASE_CONFIG={
   messagingSenderId:"560123601204",
   appId:"1:560123601204:web:1a11b3844b4ff067e10561"
 };
-// Fotos de facturas (Firebase Storage). Pon true cuando Storage esté creado en la consola.
+// Fotos de facturas: con false se guardan dentro de la base de datos (plan gratis).
+// Pon true solo si activas Firebase Storage (plan Blaze) y pegas storage.rules.
 window.FIREBASE_FOTOS=false;

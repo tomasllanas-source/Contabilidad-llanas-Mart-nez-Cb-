@@ -103,13 +103,55 @@
   const descargas={async save({filename,data}){const b=data instanceof Blob?data:new Blob([data],{type:/\.csv$/i.test(filename)?'text/csv;charset=utf-8':/\.html?$/i.test(filename)?'text/html;charset=utf-8':'application/octet-stream'});
     const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}};
 
+  // ---------- fotos dentro de la base de datos (plan gratis, sin Storage) ----------
+  // Cada foto se guarda en negocio/<página>/fotos/<id>, partida en trozos de texto que caben en un documento.
+  // La página la pide con el id "fs:<id>"; aquí se descarga y se convierte en una dirección que el navegador puede mostrar.
+  const TROZO=700000,urls=new Map(),cargando=new Map();
+  const marca=id=>"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' data-f='"+encodeURIComponent(id)+"'/%3E";
+  let leerFoto=null;
+  window.nubeBlob=async id=>{if(!leerFoto)throw new Error('sin conexión');return leerFoto(id)};
+  const PRE="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' data-f='";
+  const idDe=m=>decodeURIComponent(m.slice(PRE.length).split("'")[0]);
+  function cargar(id){
+    if(!cargando.has(id))cargando.set(id,leerFoto(id).then(b=>{const u=URL.createObjectURL(b);urls.set(id,u);const m=marca(id);
+      document.querySelectorAll('img,a').forEach(el=>{if(el.getAttribute('src')===m)el.setAttribute('src',u);if(el.getAttribute('href')===m)el.setAttribute('href',u)});return u})
+      .catch(e=>{console.error(e);cargando.delete(id);throw e}));
+    return cargando.get(id)}
+  // la página pinta una marca; las miniaturas se cargan al aparecer y los enlaces al tocarlos
+  window.nubeUrl=id=>urls.get(id)||marca(id);
+  cuandoListo(()=>{
+    const ver=()=>{if(leerFoto)document.querySelectorAll('img[src^="'+PRE+'"]').forEach(img=>cargar(idDe(img.getAttribute('src'))).catch(()=>{}))};
+    new MutationObserver(ver).observe(document.body,{childList:true,subtree:true});
+    document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a[href^="'+PRE+'"]');if(!a||!leerFoto)return;
+      e.preventDefault();const w=window.open('','_blank');cargar(idDe(a.getAttribute('href'))).then(u=>{if(w)w.location.href=u;else location.href=u}).catch(()=>{if(w)w.close();alert('No se pudo abrir la foto.')})},true);
+  });
+  function fotosEnBase({F,fs}){
+    const col=RAIZ+'fotos';
+    const aTexto=b=>new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=ko;r.readAsDataURL(b)});
+    leerFoto=async id=>{const k=id.replace(/^fs:/,'');const m=await F.getDoc(F.doc(fs,col,k));if(!m.exists())throw new Error('no encontrada');
+      const{tipo,partes}=m.data();const ts=await Promise.all(Array.from({length:partes},(_,i)=>F.getDoc(F.doc(fs,col+'/'+k+'/partes',String(i)))));
+      const bin=atob(ts.map(t=>t.data().d).join(''));const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+      return new Blob([u8],{type:tipo})};
+    return{async upload(blob,o){
+        if(blob.size>20*1024*1024)throw Object.assign(new Error('grande'),{code:'too_large'});
+        const tipo=(o&&o.type)||blob.type||'image/jpeg',txt=await aTexto(blob);
+        const k=Date.now().toString(36)+Math.random().toString(36).slice(2,8),n=Math.ceil(txt.length/TROZO);
+        try{for(let i=0;i<n;i+=10){const w=F.writeBatch(fs);for(let j=i;j<Math.min(n,i+10);j++)w.set(F.doc(fs,col+'/'+k+'/partes',String(j)),{d:txt.slice(j*TROZO,(j+1)*TROZO)});await w.commit()}
+          await F.setDoc(F.doc(fs,col,k),{tipo,partes:n,tam:blob.size,subida:Date.now()})}
+        catch(e){avisar(e);throw Object.assign(new Error(e.message),{code:e.code==='resource-exhausted'?'quota_or_state':e.code})}
+        urls.set('fs:'+k,URL.createObjectURL(blob));return{id:'fs:'+k}},
+      async delete(id){const k=id.replace(/^fs:/,'');const m=await F.getDoc(F.doc(fs,col,k));const n=m.exists()?m.data().partes:0;
+        const w=F.writeBatch(fs);for(let i=0;i<n;i++)w.delete(F.doc(fs,col+'/'+k+'/partes',String(i)));w.delete(F.doc(fs,col,k));await w.commit()}};
+  }
+
   window.claude={use:async nombre=>{
     if(nombre==='downloads')return descargas;
     if(nombre==='db'){const x=await listo;return hacerDb(x)}
     if(nombre==='assets'){
-      // fotos de facturas en Firebase Storage; se activa en firebase-config.js cuando Storage está creado
-      if(!window.FIREBASE_FOTOS)throw Object.assign(new Error('Fotos no activadas'),{code:'not_granted'});
-      const x=await listo;const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
+      const x=await listo;
+      if(!window.FIREBASE_FOTOS)return fotosEnBase(x);
+      // fotos de facturas en Firebase Storage (plan Blaze); se activa en firebase-config.js
+const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
       return{async upload(blob,o){
           if(blob.size>20*1024*1024)throw Object.assign(new Error('grande'),{code:'too_large'});
           const tipo=(o&&o.type)||blob.type||'image/jpeg',ext=tipo==='application/pdf'?'pdf':'jpg';

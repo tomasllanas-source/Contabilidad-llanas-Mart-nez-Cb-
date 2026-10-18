@@ -23,7 +23,7 @@ Sin configurar, cada página guarda solo en el navegador del dispositivo. Para q
 3. **Crea la base de datos.** Ve a **Firestore Database** → *Crear base de datos* (ubicación `eur3` o `europe-southwest1`, modo producción).
 4. **Pon las reglas.** En **Firestore** → **Reglas**, pega el contenido de `firestore.rules` con vuestros correos en la lista, y publica.
 
-**Fotos de facturas (opcional, plan Blaze):** en **Storage** → *Comenzar*, crea el almacén y pega `storage.rules` en la pestaña **Reglas**. Después pon `window.FIREBASE_FOTOS=true` en `firebase-config.js`. Para que funcione «Descargar carpeta (ZIP)», el almacén necesita permitir descargas desde la web (CORS). Desde Cloud Shell:
+**Fotos de facturas:** con el plan gratis se guardan reducidas dentro de Firestore (`negocio/contabilidad/fotos`), sin configurar nada más. Si algún día preferís Firebase Storage (plan Blaze): en **Storage** → *Comenzar*, crea el almacén y pega `storage.rules` en la pestaña **Reglas**. Después pon `window.FIREBASE_FOTOS=true` en `firebase-config.js`. Para que funcione «Descargar carpeta (ZIP)», el almacén necesita permitir descargas desde la web (CORS). Desde Cloud Shell:
 `echo '[{"origin":["https://tomasllanas-source.github.io"],"method":["GET"],"maxAgeSeconds":3600}]' > cors.json && gcloud storage buckets update gs://contabilidad-llanas.firebasestorage.app --cors-file=cors.json`
 
 Cada página guarda sus datos aparte en Firestore (`negocio/contabilidad`, `negocio/calculadora` y `negocio/inventario`). Las páginas funcionan sin cobertura: los cambios se suben solos al volver la conexión.
