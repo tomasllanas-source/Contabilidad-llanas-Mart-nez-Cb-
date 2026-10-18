@@ -5,7 +5,11 @@ service cloud.firestore {
     // Pon aquí los correos con los que entráis (en minúsculas).
     function permitido() {
       return request.auth != null
-        && request.auth.token.email in ['TU_CORREO@ejemplo.com'];
+        && request.auth.token.email in [
+          'llanastomas@gmail.com',
+          'maryjosellanas@gmail.com',
+          'alvarollanasmartinez@hotmail.com'
+        ];
     }
     match /negocio/{resto=**} {
       allow read, write: if permitido();
