@@ -365,6 +365,16 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
         <label>Importe total<span class="fld"><input id="g-total" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span><span class="hint">Con IVA, lo que pagas</span></label>
         <label>IVA<select id="g-pct"><option value="10">10 %</option><option value="21">21 %</option><option value="4">4 %</option><option value="0">Sin IVA</option></select></label>
       </div>
+      <label class="chk"><input type="checkbox" id="g-mix"> La factura lleva varios tipos de IVA</label>
+      <div class="foto" id="g-mix-w" hidden>
+        <p class="note" style="margin:0">Copia las bases imponibles del resumen de la factura (el cuadro de abajo con cada tipo de IVA). El total se calcula solo.</p>
+        <div class="grid2">
+          <label>Base al 4 %<span class="fld"><input id="g-b4" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
+          <label>Base al 10 %<span class="fld"><input id="g-b10" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
+          <label>Base al 21 %<span class="fld"><input id="g-b21" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
+          <label>Sin IVA<span class="fld"><input id="g-b0" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span><span class="hint">Portes exentos, envases…</span></label>
+        </div>
+      </div>
       <div class="grid2">
         <label>Forma de pago<select id="g-forma"><option>Transferencia</option><option>Domiciliado</option><option>Tarjeta</option><option>Efectivo</option></select></label>
         <label class="chk" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="g-pag" checked> Ya está pagado</label>
@@ -517,7 +527,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     return {V,G};
   }
   function mkVenta(fecha,efe,tar,otr,pct,nota,ej){const total=r2(efe+tar+otr);const base=r2(total/(1+pct/100));return {id:fecha,fecha,efectivo:r2(efe),tarjeta:r2(tar),otros:r2(otr),pct,total,base,iva:r2(total-base),nota,ej:!!ej}}
-  function mkGasto(o,ej){const total=r2(o.total);const base=o.base!=null?r2(o.base):r2(total/(1+o.pct/100));return {id:o.id||nuevoId(),fecha:o.fecha,proveedor:o.proveedor||'',concepto:o.concepto||'',cat:o.cat,total,pct:o.pct,base,iva:r2(total-base),pagado:!!o.pagado,forma:o.forma||'',fechaFactura:o.fechaFactura||null,foto:o.foto||null,fotoTipo:o.fotoTipo||null,carpeta:o.carpeta||null,ej:!!ej}}
+  function mkGasto(o,ej){const total=r2(o.total);const base=o.base!=null?r2(o.base):r2(total/(1+o.pct/100));return {id:o.id||nuevoId(),fecha:o.fecha,proveedor:o.proveedor||'',concepto:o.concepto||'',cat:o.cat,total,pct:o.pct,base,iva:r2(total-base),pagado:!!o.pagado,forma:o.forma||'',desglose:o.desglose||null,fechaFactura:o.fechaFactura||null,foto:o.foto||null,fotoTipo:o.fotoTipo||null,carpeta:o.carpeta||null,ej:!!ej}}
   let EJ=null;
   const vacio=()=>!ventas.length&&!gastos.length&&!banco.length;
   const V=()=>vacio()?(EJ||(EJ=ejemplo())).V:ventas;
@@ -709,17 +719,26 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   $('g-cat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');
   $('g-cat').addEventListener('change',()=>{if(!editId){$('g-pct').value=CAT_IVA[$('g-cat').value]??21;calcGasto()}autoCarpeta()});
   let baseFoto=null;
-  function calcGasto(){const total=pn($('g-total').value),pct=+$('g-pct').value;
+  // factura con varios tipos de IVA: se apunta la base de cada tipo y el total sale solo
+  const TIPOS_IVA=[4,10,21,0];
+  function setMix(on){$('g-mix').checked=on;$('g-mix-w').hidden=!on;$('g-pct').disabled=on;$('g-total').readOnly=on}
+  $('g-mix').addEventListener('change',()=>{setMix($('g-mix').checked);if(!$('g-mix').checked)TIPOS_IVA.forEach(t=>$('g-b'+t).value='');calcGasto()});
+  TIPOS_IVA.forEach(t=>$('g-b'+t).addEventListener('input',calcGasto));
+  function calcGasto(){
+    if($('g-mix').checked){const desglose=TIPOS_IVA.map(t=>{const base=r2(pn($('g-b'+t).value));return{pct:t,base,iva:r2(base*t/100)}}).filter(d=>d.base);
+      const base=r2(desglose.reduce((a,d)=>a+d.base,0)),total=r2(desglose.reduce((a,d)=>a+d.base+d.iva,0));
+      $('g-total').value=total?fmtIn(total):'';$('g-base').textContent=eur(base);$('g-iva').textContent=eur(r2(total-base));return{total,pct:'mixto',base,desglose}}
+    const total=pn($('g-total').value),pct=+$('g-pct').value;
     const base=baseFoto!=null&&Math.abs(baseFoto.total-total)<0.01?baseFoto.base:r2(total/(1+pct/100));
     $('g-base').textContent=eur(base);$('g-iva').textContent=eur(r2(total-base));return{total,pct,base}}
   ['g-total','g-pct'].forEach(i=>$(i).addEventListener('input',calcGasto));
-  function limpiarGasto(){editId=null;baseFoto=null;$('g-fecha').value=hoy;$('g-ffac').value='';$('g-cat').value=CATS[0];$('g-pct').value=10;['g-prov','g-con','g-total'].forEach(i=>$(i).value='');$('g-forma').value='Transferencia';$('g-pag').checked=true;
+  function limpiarGasto(){editId=null;baseFoto=null;$('g-fecha').value=hoy;$('g-ffac').value='';$('g-cat').value=CATS[0];$('g-pct').value=10;['g-prov','g-con','g-total'].forEach(i=>$(i).value='');$('g-forma').value='Transferencia';$('g-pag').checked=true;TIPOS_IVA.forEach(t=>$('g-b'+t).value='');setMix(false);
     $('g-tit').textContent='Nuevo gasto';$('g-guardar').textContent='Guardar gasto';$('g-cancel').hidden=true;$('g-fstat').textContent='';
     if(fotoPend)URL.revokeObjectURL(fotoPend.url);fotoPend=null;fotoActual=null;carpetaManual=false;autoCarpeta();pintarFotoForm();calcGasto()}
   $('g-cancel').onclick=limpiarGasto;
   $('g-guardar').onclick=async()=>{const c=calcGasto();const fecha=$('g-fecha').value;
     if(!fecha){toast('Pon la fecha de la factura.');return}if(!c.total){toast('Apunta el importe total.');return}
-    const o=mkGasto({id:editId||undefined,fecha,fechaFactura:$('g-ffac').value||null,proveedor:$('g-prov').value.trim(),concepto:$('g-con').value.trim(),cat:$('g-cat').value,total:c.total,pct:c.pct,base:c.base,pagado:$('g-pag').checked,forma:$('g-forma').value,
+    const o=mkGasto({id:editId||undefined,fecha,fechaFactura:$('g-ffac').value||null,proveedor:$('g-prov').value.trim(),concepto:$('g-con').value.trim(),cat:$('g-cat').value,total:c.total,pct:c.pct,base:c.base,desglose:c.desglose||null,pagado:$('g-pag').checked,forma:$('g-forma').value,
       foto:fotoActual?fotoActual.id:null,fotoTipo:fotoActual?fotoActual.tipo:null,carpeta:fotoActual?carpeta:null});
     $('g-guardar').disabled=true;
     let vieja=null;
@@ -741,12 +760,14 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     $('g-filtro').querySelectorAll('button').forEach(b=>b.onclick=()=>{filtroCat=b.dataset.f;renderGastos()});
     const f=g.filter(x=>filtroCat==='todas'||(filtroCat==='pend'?!x.pagado:x.cat===filtroCat)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     $('g-sum').textContent=eur(sum(f,'total'));
-    $('g-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.proveedor||x.concepto||x.cat)}</div><div class="meta">${fechaCorta(x.fecha)}${x.fechaFactura&&x.fechaFactura!==x.fecha?' · factura del '+fechaCorta(x.fechaFactura):''}${x.concepto&&x.proveedor?' · '+esc(x.concepto):''} <span class="badge">${esc(x.cat.replace(/ \(.*\)/,''))}</span>${x.pagado?'':'<span class="badge pend">Pendiente</span>'}${x.ej?'<span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>${x.pct==='mixto'?'IVA mixto':x.pct?'IVA '+x.pct+' %':'sin IVA'}</small></div>${x.ej?'':`<div class="acts">${x.foto?`<a href="${esc(urlBlob(x.foto))}" target="_blank" rel="noopener">Ver factura</a>`:''}${x.pagado?'':`<button data-pag="${x.id}">Marcar pagado</button>`}<button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay gastos aquí. Apunta cada factura arriba cuando te llegue.</div>';
+    $('g-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.proveedor||x.concepto||x.cat)}</div><div class="meta">${fechaCorta(x.fecha)}${x.fechaFactura&&x.fechaFactura!==x.fecha?' · factura del '+fechaCorta(x.fechaFactura):''}${x.concepto&&x.proveedor?' · '+esc(x.concepto):''} <span class="badge">${esc(x.cat.replace(/ \(.*\)/,''))}</span>${x.pagado?'':'<span class="badge pend">Pendiente</span>'}${x.ej?'<span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>${x.pct==='mixto'?(Array.isArray(x.desglose)?'IVA '+x.desglose.map(d=>d.pct+' %').join(' + '):'IVA mixto'):x.pct?'IVA '+x.pct+' %':'sin IVA'}</small></div>${x.ej?'':`<div class="acts">${x.foto?`<a href="${esc(urlBlob(x.foto))}" target="_blank" rel="noopener">Ver factura</a>`:''}${x.pagado?'':`<button data-pag="${x.id}">Marcar pagado</button>`}<button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay gastos aquí. Apunta cada factura arriba cuando te llegue.</div>';
     $('g-lista').querySelectorAll('[data-pag]').forEach(b=>b.onclick=()=>pagar(b.dataset.pag));
     $('g-lista').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>confirmarBorrar('gastos',b.dataset.del));
     $('g-lista').querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const x=gastos.find(y=>y.id===b.dataset.ed);if(!x)return;editId=x.id;
       $('g-fecha').value=x.fecha;$('g-ffac').value=x.fechaFactura||'';$('g-cat').value=x.cat;$('g-prov').value=x.proveedor;$('g-con').value=x.concepto;$('g-total').value=fmtIn(x.total);
-      if(x.pct==='mixto'){baseFoto={total:x.total,base:x.base}}else{baseFoto=null;$('g-pct').value=x.pct}
+      TIPOS_IVA.forEach(t=>$('g-b'+t).value='');setMix(false);
+      if(x.pct==='mixto'&&x.desglose){baseFoto=null;setMix(true);x.desglose.forEach(d=>{if($('g-b'+d.pct))$('g-b'+d.pct).value=fmtIn(d.base)})}
+      else if(x.pct==='mixto'){baseFoto={total:x.total,base:x.base}}else{baseFoto=null;$('g-pct').value=x.pct}
       if(fotoPend)URL.revokeObjectURL(fotoPend.url);fotoPend=null;fotoActual=x.foto?{id:x.foto,tipo:x.fotoTipo||'image/jpeg'}:null;if(x.carpeta){carpetaManual=true;setCarpeta(x.carpeta)}else{carpetaManual=false;autoCarpeta()}pintarFotoForm();
       $('g-forma').value=x.forma||'Transferencia';$('g-pag').checked=x.pagado;$('g-tit').textContent='Editar gasto';$('g-guardar').textContent='Guardar cambios';$('g-cancel').hidden=false;calcGasto();window.scrollTo({top:0,behavior:'smooth'})});
   }
@@ -954,7 +975,7 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
     const n=x=>x==null||!isFinite(x)?'':x.toFixed(2).replace('.',',');const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
     const L=[['Tipo','Fecha','Proveedor / Detalle','Concepto','Categoría','Base','IVA %','Cuota IVA','Total','Pagado','Forma de pago','Archivo de la factura','Fecha de la factura'].join(';')];
     ventas.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(x=>L.push(['Venta',x.fecha,q('Caja del día'),q(x.nota),q('Ventas'),n(x.base),x.pct,n(x.iva),n(x.total),'Sí',q(`Efectivo ${n(x.efectivo)} / Tarjeta ${n(x.tarjeta)} / Otros ${n(x.otros)}`)].join(';')));
-    gastos.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(x=>L.push(['Gasto',x.fecha,q(x.proveedor),q(x.concepto),q(x.cat),n(x.base),x.pct,n(x.iva),n(x.total),x.pagado?'Sí':'No',q(x.forma),q(x.foto?(x.carpeta==='facturas'?'Facturas/':'Gastos/')+nombreArchivo({fecha:x.fecha,ff:x.fechaFactura,titulo:x.proveedor||x.concepto||x.cat,total:x.total,tipo:x.fotoTipo||'image/jpeg'}):''),x.fechaFactura||''].join(';')));
+    gastos.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).flatMap(x=>Array.isArray(x.desglose)&&x.desglose.length?x.desglose.map(d=>({...x,base:d.base,pct:d.pct,iva:d.iva,total:r2(d.base+d.iva)})):[x]).forEach(x=>L.push(['Gasto',x.fecha,q(x.proveedor),q(x.concepto),q(x.cat),n(x.base),x.pct,n(x.iva),n(x.total),x.pagado?'Sí':'No',q(x.forma),q(x.foto?(x.carpeta==='facturas'?'Facturas/':'Gastos/')+nombreArchivo({fecha:x.fecha,ff:x.fechaFactura,titulo:x.proveedor||x.concepto||x.cat,total:x.total,tipo:x.fotoTipo||'image/jpeg'}):''),x.fechaFactura||''].join(';')));
     banco.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(x=>L.push(['Banco',x.fecha,q(x.cuenta||'Banco'),q(x.concepto),q(x.tipo),n(x.importe),'','',n(x.importe),'Sí',q('Cargo en cuenta'),'',''].join(';')));
     const nom='contabilidad-'+codPeriodo()+'.csv';
     try{await downloads.save({filename:nom,data:'﻿'+L.join('\r\n')})}catch(e){if(e&&e.code!=='declined')toast('No se pudo descargar el archivo.')}
