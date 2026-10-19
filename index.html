@@ -323,6 +323,16 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
         <label>Tarjeta<span class="fld"><input id="c-tar" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
         <label>Bizum y otros<span class="fld"><input id="c-otr" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
       </div>
+      <label class="chk"><input type="checkbox" id="c-mix"> Lo vendido lleva varios tipos de IVA</label>
+      <div class="foto" id="c-mix-w" hidden>
+        <p class="note" style="margin:0">De todo lo cobrado, pon cuánto fue a cada otro tipo de IVA (con IVA, como en el ticket). El resto va al tipo de arriba.</p>
+        <div class="grid2">
+          <label id="c-m4-w">Vendido al 4 %<span class="fld"><input id="c-m4" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
+          <label id="c-m10-w">Vendido al 10 %<span class="fld"><input id="c-m10" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
+          <label id="c-m21-w">Vendido al 21 %<span class="fld"><input id="c-m21" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
+        </div>
+        <div class="calc" id="c-desg"></div>
+      </div>
       <label>Nota<input id="c-nota" type="text" placeholder="Opcional: encargos, festivo…"></label>
       <div class="calc">
         <div><span>Total cobrado</span><b id="c-total">0,00 €</b></div>
@@ -537,7 +547,11 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   }
   // la caja 1 de cada día se guarda con la fecha (como siempre); las demás, con la fecha y su número
   const idCaja=(fecha,caja)=>caja>1?fecha+'_c'+caja:fecha;
-  function mkVenta(fecha,efe,tar,otr,pct,nota,ej,caja){caja=caja||1;const total=r2(efe+tar+otr);const base=r2(total/(1+pct/100));return {id:idCaja(fecha,caja),fecha,caja,efectivo:r2(efe),tarjeta:r2(tar),otros:r2(otr),pct,total,base,iva:r2(total-base),nota,ej:!!ej}}
+  // otros: lo cobrado (con IVA) a tipos distintos del principal, {4:120,…}; el resto va al tipo principal
+  function mkVenta(fecha,efe,tar,otr,pct,nota,ej,caja,otros){caja=caja||1;const total=r2(efe+tar+otr);
+    const ds=Object.entries(otros||{}).map(([t,a])=>({pct:+t,total:r2(a)})).filter(d=>d.total&&d.pct!==pct);
+    if(ds.length)ds.unshift({pct,total:r2(total-ds.reduce((s,d)=>s+d.total,0))});ds.forEach(d=>{d.base=r2(d.total/(1+d.pct/100));d.iva=r2(d.total-d.base)});
+    const base=ds.length?r2(ds.reduce((s,d)=>s+d.base,0)):r2(total/(1+pct/100));return {id:idCaja(fecha,caja),fecha,caja,efectivo:r2(efe),tarjeta:r2(tar),otros:r2(otr),pct,...(ds.length?{desglose:ds}:{}),total,base,iva:r2(total-base),nota,ej:!!ej}}
   function mkGasto(o,ej){const total=r2(o.total);const base=o.base!=null?r2(o.base):r2(total/(1+o.pct/100));return {id:o.id||nuevoId(),fecha:o.fecha,proveedor:o.proveedor||'',concepto:o.concepto||'',cat:o.cat,total,pct:o.pct,base,iva:r2(total-base),pagado:!!o.pagado,forma:o.forma||'',desglose:o.desglose||null,fechaFactura:o.fechaFactura||null,foto:o.foto||null,fotoTipo:o.fotoTipo||null,carpeta:o.carpeta||null,ej:!!ej}}
   let EJ=null;
   const vacio=()=>!ventas.length&&!gastos.length&&!banco.length;
@@ -705,21 +719,27 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   }
 
   // ---------- caja ----------
-  function calcCaja(){const e=pn($('c-efe').value),t=pn($('c-tar').value),o=pn($('c-otr').value),p=+$('c-pct').value;const v=mkVenta($('c-fecha').value,e,t,o,p,'',false,+$('c-caja').value);
+  const TIPOS_V=[4,10,21];
+  function calcCaja(){const e=pn($('c-efe').value),t=pn($('c-tar').value),o=pn($('c-otr').value),p=+$('c-pct').value,mix=$('c-mix').checked;
+    const otros={};if(mix)TIPOS_V.forEach(k=>{$('c-m'+k+'-w').hidden=k===p;if(k!==p)otros[k]=pn($('c-m'+k).value)});
+    const v=mkVenta($('c-fecha').value,e,t,o,p,'',false,+$('c-caja').value,otros);
+    $('c-desg').innerHTML=v.desglose?v.desglose.map(d=>`<div><span>Al ${d.pct} %${d.pct===p?' (el resto)':''}</span><b>${eur(d.total)}</b></div>`).join(''):'';
     $('c-total').textContent=eur(v.total);$('c-base').textContent=eur(v.base);$('c-iva').textContent=eur(v.iva);return v}
   function cargarCaja(){const f=$('c-fecha').value,n=+$('c-caja').value;const ex=ventas.find(x=>x.id===idCaja(f,n));
-    if(ex){$('c-efe').value=fmtIn(ex.efectivo);$('c-tar').value=fmtIn(ex.tarjeta);$('c-otr').value=fmtIn(ex.otros);$('c-pct').value=ex.pct;$('c-nota').value=ex.nota||'';$('c-aviso').textContent='Ya tienes la caja '+n+' de este día. Si guardas, se sustituye.';$('c-guardar').textContent='Actualizar caja del día'}
-    else{['c-efe','c-tar','c-otr','c-nota'].forEach(i=>$(i).value='');const otras=ventas.filter(x=>x.fecha===f).length;$('c-aviso').textContent=otras?'Este día ya tiene '+(otras===1?'otra caja':otras+' cajas')+'; esta se suma.':'';$('c-guardar').textContent='Guardar caja del día'}
+    if(ex){$('c-efe').value=fmtIn(ex.efectivo);$('c-tar').value=fmtIn(ex.tarjeta);$('c-otr').value=fmtIn(ex.otros);$('c-pct').value=ex.pct;TIPOS_V.forEach(k=>{const d=(ex.desglose||[]).find(y=>y.pct===k&&k!==ex.pct);$('c-m'+k).value=d?fmtIn(d.total):''});$('c-mix').checked=!!ex.desglose;$('c-mix-w').hidden=!ex.desglose;$('c-nota').value=ex.nota||'';$('c-aviso').textContent='Ya tienes la caja '+n+' de este día. Si guardas, se sustituye.';$('c-guardar').textContent='Actualizar caja del día'}
+    else{['c-efe','c-tar','c-otr','c-nota','c-m4','c-m10','c-m21'].forEach(i=>$(i).value='');const otras=ventas.filter(x=>x.fecha===f).length;$('c-aviso').textContent=otras?'Este día ya tiene '+(otras===1?'otra caja':otras+' cajas')+'; esta se suma.':'';$('c-guardar').textContent='Guardar caja del día'}
     calcCaja()}
-  ['c-efe','c-tar','c-otr','c-pct'].forEach(i=>$(i).addEventListener('input',calcCaja));
+  ['c-efe','c-tar','c-otr','c-pct','c-m4','c-m10','c-m21'].forEach(i=>$(i).addEventListener('input',calcCaja));
+  $('c-mix').addEventListener('change',()=>{$('c-mix-w').hidden=!$('c-mix').checked;calcCaja()});
   $('c-fecha').addEventListener('change',cargarCaja);$('c-caja').addEventListener('change',cargarCaja);
   $('c-guardar').onclick=async()=>{const v=calcCaja();if(!v.fecha){toast('Pon la fecha de la caja.');return}if(!v.total){toast('Apunta al menos un importe cobrado.');return}
+    if(v.desglose&&v.desglose[0].total<0){toast('Lo vendido a otros tipos de IVA pasa del total cobrado. Revísalo.');return}
     v.nota=$('c-nota').value.trim();$('c-guardar').disabled=true;
     try{await guardar('ventas',v);toast((v.caja>1?'Caja '+v.caja+' del ':'Caja del ')+fechaCorta(v.fecha)+' guardada');}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
     $('c-guardar').disabled=false};
   function renderCaja(){const v=V().filter(x=>enRango(x.fecha)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     $('c-sum').textContent=eur(sum(v,'total'));$('c-sum-tar').textContent=eur(sum(v,'tarjeta'));$('c-sum-efe').textContent=eur(sum(v,'efectivo'));$('c-sum-otr').textContent=eur(sum(v,'otros'));
-    $('c-lista').innerHTML=v.length?v.map(x=>`<div class="item"><div><div class="name">${cap(fechaCorta(x.fecha))}${(x.caja||1)>1||v.some(y=>y!==x&&y.fecha===x.fecha)?' · Caja '+(x.caja||1):''}</div><div class="meta">Tarjeta ${eur(x.tarjeta)} · Efectivo ${eur(x.efectivo)}${x.otros?' · Bizum '+eur(x.otros):''}${x.nota?' · '+esc(x.nota):''}${x.ej?' <span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>base ${eur(x.base)}</small></div>${x.ej?'':`<div class="acts"><button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay cajas apuntadas en este periodo. Rellena el cierre de arriba al acabar el día.</div>';
+    $('c-lista').innerHTML=v.length?v.map(x=>`<div class="item"><div><div class="name">${cap(fechaCorta(x.fecha))}${(x.caja||1)>1||v.some(y=>y!==x&&y.fecha===x.fecha)?' · Caja '+(x.caja||1):''}</div><div class="meta">Tarjeta ${eur(x.tarjeta)} · Efectivo ${eur(x.efectivo)}${x.otros?' · Bizum '+eur(x.otros):''}${x.nota?' · '+esc(x.nota):''}${x.ej?' <span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>base ${eur(x.base)}${x.desglose?' · IVA '+x.desglose.map(d=>d.pct+' %').join(' y '):''}</small></div>${x.ej?'':`<div class="acts"><button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay cajas apuntadas en este periodo. Rellena el cierre de arriba al acabar el día.</div>';
     $('c-lista').querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const x=ventas.find(y=>y.id===b.dataset.ed);if(!x)return;$('c-fecha').value=x.fecha;$('c-caja').value=x.caja||1;cargarCaja();window.scrollTo({top:0,behavior:'smooth'})});
     $('c-lista').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>confirmarBorrar('ventas',b.dataset.del));
   }
@@ -989,7 +1009,8 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
     if(!downloads){toast('Las descargas no están disponibles en esta vista.');return}
     const n=x=>x==null||!isFinite(x)?'':x.toFixed(2).replace('.',',');const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
     const L=[['Tipo','Fecha','Proveedor / Detalle','Concepto','Categoría','Base','IVA %','Cuota IVA','Total','Pagado','Forma de pago','Archivo de la factura','Fecha de la factura'].join(';')];
-    ventas.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(x=>L.push(['Venta',x.fecha,q('Caja del día'+((x.caja||1)>1?' ('+x.caja+')':'')),q(x.nota),q('Ventas'),n(x.base),x.pct,n(x.iva),n(x.total),'Sí',q(`Efectivo ${n(x.efectivo)} / Tarjeta ${n(x.tarjeta)} / Otros ${n(x.otros)}`)].join(';')));
+    // una caja con varios tipos de IVA sale en una línea por tipo; la forma de pago va en la primera
+    ventas.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).flatMap(x=>x.desglose?x.desglose.map((d,i)=>({...x,...d,pag:i===0})):[{...x,pag:true}]).forEach(x=>L.push(['Venta',x.fecha,q('Caja del día'+((x.caja||1)>1?' ('+x.caja+')':'')),q(x.nota),q('Ventas'),n(x.base),x.pct,n(x.iva),n(x.total),'Sí',q(x.pag?`Efectivo ${n(x.efectivo)} / Tarjeta ${n(x.tarjeta)} / Otros ${n(x.otros)}`:'(misma caja, otro tipo de IVA)')].join(';')));
     gastos.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).flatMap(x=>Array.isArray(x.desglose)&&x.desglose.length?x.desglose.map(d=>({...x,base:d.base,pct:d.pct,iva:d.iva,total:r2(d.base+d.iva)})):[x]).forEach(x=>L.push(['Gasto',x.fecha,q(x.proveedor),q(x.concepto),q(x.cat),n(x.base),x.pct,n(x.iva),n(x.total),x.pagado?'Sí':'No',q(x.forma),q(x.foto?(x.carpeta==='facturas'?'Facturas/':'Gastos/')+nombreArchivo({fecha:x.fecha,ff:x.fechaFactura,titulo:x.proveedor||x.concepto||x.cat,total:x.total,tipo:x.fotoTipo||'image/jpeg'}):''),x.fechaFactura||''].join(';')));
     banco.filter(x=>enRango(x.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(x=>L.push(['Banco',x.fecha,q(x.cuenta||'Banco'),q(x.concepto),q(x.tipo),n(x.importe),'','',n(x.importe),'Sí',q('Cargo en cuenta'),'',''].join(';')));
     const nom='contabilidad-'+codPeriodo()+'.csv';
