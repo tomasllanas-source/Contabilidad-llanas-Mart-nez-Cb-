@@ -243,6 +243,9 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
         <div class="row tot"><span>Margen sobre ventas</span><b id="res-mar">–</b></div>
         <div class="row"><span>Días de caja apuntados</span><b id="res-dias">–</b></div>
         <div class="row"><span>Venta media por día <small>(con IVA)</small></span><b id="res-media">–</b></div>
+        <div class="row tot"><span>Cobrado en efectivo <small>(con IVA)</small></span><b id="res-efe">–</b></div>
+        <div class="row tot"><span>Cobrado con tarjeta <small>(con IVA)</small></span><b id="res-tar">–</b></div>
+        <div class="row" id="res-otr-w"><span>Bizum y otros <small>(con IVA)</small></span><b id="res-otr">–</b></div>
       </div>
     </section>
 
@@ -615,7 +618,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     const ing=sum(v,'base'),gas=sum(g,'base'),ben=r2(ing-gas-bt-pt);$('res-per').textContent=eur(pt);
     $('res-ben').textContent=eur(ben);$('res-ing').textContent=eur(ing);$('res-gas').textContent=eur(gas);$('res-ban').textContent=eur(bt);
     $('res-mar').textContent=ing?(ben/ing*100).toLocaleString('es-ES',{maximumFractionDigits:1})+' %':'–';
-    const nd=new Set(v.map(x=>x.fecha)).size;$('res-dias').textContent=nd;$('res-media').textContent=nd?eur(sum(v,'total')/nd):'–';
+    const nd=new Set(v.map(x=>x.fecha)).size;$('res-dias').textContent=nd;$('res-efe').textContent=eur(sum(v,'efectivo'));$('res-tar').textContent=eur(sum(v,'tarjeta'));$('res-otr').textContent=eur(sum(v,'otros'));$('res-otr-w').hidden=!sum(v,'otros');$('res-media').textContent=nd?eur(sum(v,'total')/nd):'–';
     $('res-banco').hidden=!bp.length;
     const pb={};bp.forEach(x=>pb[x.tipo]=(pb[x.tipo]||0)+(+x.importe||0));const lb=Object.entries(pb).sort((a,b)=>b[1]-a[1]);const mb=lb.length?lb[0][1]:1;
     $('cats-ban').innerHTML=lb.map(([c,n])=>`<div class="cb"><div class="t"><span>${esc(c)}</span><b>${eur(n)}</b></div><div class="bar"><i class="ban" style="width:${(n/mb*100).toFixed(1)}%"></i></div></div>`).join('')+`<div class="sumline"><span>Total banco</span><b>${eur(btReal)}</b></div>`;
