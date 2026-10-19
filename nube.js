@@ -153,7 +153,8 @@
       const x=await listo;
       if(!window.FIREBASE_FOTOS)return fotosEnBase(x);
       // fotos de facturas en Firebase Storage (plan Blaze); se activa en firebase-config.js
-const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
+      // las fotos guardadas antes en la base de datos (fs:…) se siguen viendo y borrando desde allí
+      const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb),base=fotosEnBase(x);
       return{async upload(blob,o){
           if(blob.size>20*1024*1024)throw Object.assign(new Error('grande'),{code:'too_large'});
           const tipo=(o&&o.type)||blob.type||'image/jpeg',ext=tipo==='application/pdf'?'pdf':'jpg';
@@ -161,7 +162,7 @@ const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
           try{await S.uploadBytes(r,blob,{contentType:tipo})}
           catch(e){avisar(e);throw Object.assign(new Error(e.message),{code:e.code==='storage/quota-exceeded'?'quota_or_state':e.code})}
           return{id:await S.getDownloadURL(r)}},
-        delete:async id=>{await S.deleteObject(S.ref(st,id))}};
+        delete:async id=>{if(/^fs:/.test(id))return base.delete(id);await S.deleteObject(S.ref(st,id))}};
     }
     if(nombre==='sample'){
       // leer facturas con Gemini (Firebase AI Logic); en España exige el plan Blaze, se activa en firebase-config.js
