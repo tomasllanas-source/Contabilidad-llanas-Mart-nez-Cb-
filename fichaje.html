@@ -1,0 +1,352 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Fichaje Carnicería</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<script src="firebase-config.js"></script>
+<script src="nube.js" data-app="fichaje"></script>
+<style>
+/* Layout: una columna tipo reloj de fichar; hora y botón grande arriba, fichajes del día y del equipo debajo, centros al final. Misma identidad que la Contabilidad y el Inventario. */
+:root{
+  --bg:#eef1f0; --surface:#ffffff; --fg:#1d2422; --muted:#5b6662; --line:#d5dcd9;
+  --accent:#8c1c2b; --accent-ink:#ffffff; --accent-soft:#f6e3e5;
+  --elab:#2f5d4a; --elab-ink:#ffffff; --elab-soft:#dfece5;
+  --warn:#a4561a; --warn-soft:#f7e9dc;
+  --tile:rgba(29,36,34,.045);
+  --f-display:"Alfa Slab One", Rockwell, "Roboto Slab", Georgia, serif;
+  --f-body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-num:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151a19; --surface:#1e2523; --fg:#e8ecea; --muted:#9aa5a1; --line:#33403c;
+  --accent:#e0606f; --accent-ink:#1a0d10; --accent-soft:#3a1f24;
+  --elab:#7cc3a2; --elab-ink:#0f1f18; --elab-soft:#1f3a2f; --warn:#e8a46a; --warn-soft:#3a2a1c;
+  --tile:rgba(255,255,255,.03); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151a19; --surface:#1e2523; --fg:#e8ecea; --muted:#9aa5a1; --line:#33403c;
+  --accent:#e0606f; --accent-ink:#1a0d10; --accent-soft:#3a1f24;
+  --elab:#7cc3a2; --elab-ink:#0f1f18; --elab-soft:#1f3a2f; --warn:#e8a46a; --warn-soft:#3a2a1c;
+  --tile:rgba(255,255,255,.03); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  background-image:linear-gradient(var(--tile) 1px,transparent 1px),linear-gradient(90deg,var(--tile) 1px,transparent 1px);background-size:28px 28px}
+.wrap{max-width:720px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+header{display:grid;gap:6px}
+header h1{font-family:var(--f-display);font-weight:400;font-size:clamp(26px,6vw,36px);line-height:1.05;margin:0;color:var(--accent);text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:60ch}
+.sync{justify-self:start;font-size:12px;font-weight:600;border-radius:20px;padding:3px 10px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.sync.ok{color:var(--elab);border-color:var(--elab)}
+.paginas{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;font-weight:600}.paginas a{color:var(--muted);text-decoration:none}.paginas a[aria-current]{color:var(--fg);text-decoration:underline}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:14px;min-width:0}
+.card h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:19px;color:var(--fg)}
+.cab{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.muted{color:var(--muted)}
+.peq{font-size:13px}
+
+.reloj{display:flex;justify-content:space-between;align-items:flex-end;gap:8px 16px;flex-wrap:wrap}
+.hora{font:700 clamp(46px,13vw,72px)/1 var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.hora small{font-size:.42em;color:var(--muted);margin-left:4px}
+.fecha{color:var(--muted);font-size:14px}
+.estado{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.in{background:var(--elab-soft);color:var(--elab)}
+.pill.out{background:var(--bg);color:var(--muted)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--accent-soft);color:var(--accent)}
+.cifras{display:flex;gap:28px;flex-wrap:wrap}
+.cifra{display:grid}
+.cifra span{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.cifra b{font:700 22px var(--f-num);font-variant-numeric:tabular-nums}
+
+.campos{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.campos{grid-template-columns:1fr}}
+label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--muted);min-width:0}
+select,input[type=text],input[type=number],input[type=month]{font:500 16px var(--f-body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0}
+
+.ubic{border:1px dashed var(--line);border-radius:10px;padding:12px 14px;display:flex;gap:10px 12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--bg)}
+.ubic p{margin:0;flex:1 1 240px;min-width:0;font-size:14px}
+button{font:600 14px var(--f-body);border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+button:disabled{opacity:.55;cursor:wait}
+button.prim{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.enlace{border:0;background:none;padding:2px 0;color:var(--muted);text-decoration:underline;font-weight:500;font-size:13px}
+.fichar{width:100%;padding:18px;border:0;border-radius:12px;font:700 20px var(--f-body);letter-spacing:.01em}
+.fichar.entrar{background:var(--elab);color:var(--elab-ink)}
+.fichar.salir{background:var(--accent);color:var(--accent-ink)}
+.fichar small{display:block;font:500 12px var(--f-num);opacity:.85;margin-top:2px}
+
+.lista{list-style:none;margin:0;padding:0;display:grid}
+.lista li{display:grid;grid-template-columns:58px 74px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px dashed var(--line);font-size:14px}
+.lista li:first-child{border-top:0}
+.lista .hh{font:700 15px var(--f-num);font-variant-numeric:tabular-nums}
+.lista .donde{min-width:0;overflow-wrap:anywhere}
+.tipo{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.tipo.in{color:var(--elab)}.tipo.out{color:var(--accent)}
+@media (max-width:520px){.lista li{grid-template-columns:52px 68px minmax(0,1fr)}.lista li .pill{grid-column:3;justify-self:start}}
+
+.tabla{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 10px 6px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px 9px 0;border-bottom:1px dashed var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.num{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+.vacio{padding:12px 14px;border-radius:10px;background:var(--bg);color:var(--muted);font-size:14px}
+.aviso{padding:12px 14px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font-size:14px}
+.fila{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.fila>label{flex:1 1 130px}
+.fila>button{flex:0 0 auto}
+footer{font-size:12px;color:var(--muted);text-align:center}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--surface);padding:10px 16px;border-radius:20px;font-weight:600;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <nav class="paginas" aria-label="Páginas"><a href="index.html">Contabilidad</a><a href="calculadora.html">Calculadora PVP</a><a href="inventario.html">Inventario</a><a href="fichaje.html" aria-current="page">Fichaje</a></nav>
+    <h1>Fichaje · Carnicería</h1>
+    <p>Ficha la entrada y la salida desde el móvil. Al fichar se comprueba con el GPS que estás en la tienda.</p>
+    <span class="sync" id="sync">Conectando…</span>
+  </header>
+
+  <section class="card" aria-label="Fichar">
+    <div class="reloj">
+      <div class="hora" id="hora">--:--<small>--</small></div>
+      <div class="fecha" id="fecha"></div>
+    </div>
+    <div class="estado"><span class="pill out" id="pill">Fuera</span><span class="muted peq" id="desde"></span></div>
+    <div class="cifras">
+      <div class="cifra"><span>Hoy</span><b id="h-hoy">0 h 00</b></div>
+      <div class="cifra"><span>Esta semana</span><b id="h-sem">0 h 00</b></div>
+    </div>
+    <div class="campos">
+      <label class="f" for="centro">Centro de trabajo<select id="centro"></select></label>
+      <label class="f" for="nota">Nota (opcional)<input type="text" id="nota" maxlength="140" placeholder="Ej.: reparto, matadero, feria"></label>
+    </div>
+    <div class="ubic">
+      <p id="ubic-txt">Al pulsar «Fichar» se pide tu ubicación. El móvil te preguntará la primera vez: elige «Permitir».</p>
+      <button type="button" id="b-ubic">Comprobar ahora</button>
+    </div>
+    <button type="button" class="fichar entrar" id="b-fichar" disabled>Fichar entrada<small id="b-sub">Cargando…</small></button>
+  </section>
+
+  <section class="card" aria-labelledby="t-hoy">
+    <h2 id="t-hoy">Mis fichajes de hoy</h2>
+    <ul class="lista" id="l-hoy"></ul>
+    <div class="vacio" id="v-hoy">Aún no has fichado hoy. Cada fichaje aparecerá aquí con la hora, el centro y si estabas dentro del radio.</div>
+  </section>
+
+  <section class="card" aria-labelledby="t-sem">
+    <div class="cab"><h2 id="t-sem">Mis últimos 7 días</h2><button type="button" class="enlace" id="b-csv-yo">Descargar mis fichajes del mes (CSV)</button></div>
+    <div class="tabla"><table>
+      <thead><tr><th>Día</th><th class="num">Entrada</th><th class="num">Salida</th><th class="num">Horas</th></tr></thead>
+      <tbody id="t-dias"></tbody>
+    </table></div>
+  </section>
+
+  <section class="card" aria-labelledby="t-eq">
+    <div class="cab"><h2 id="t-eq">Equipo hoy</h2>
+      <div class="fila"><label class="f" for="mes">Mes<input type="month" id="mes"></label><button type="button" id="b-csv-todo">Registro del mes (CSV)</button></div>
+    </div>
+    <div class="tabla"><table>
+      <thead><tr><th>Persona</th><th>Estado</th><th>Último</th><th>Centro</th><th class="num">Horas hoy</th></tr></thead>
+      <tbody id="t-eq-body"></tbody>
+    </table></div>
+    <div class="vacio" id="v-eq">Nadie ha fichado en los últimos días. Cuando alguien fiche aparecerá aquí.</div>
+  </section>
+
+  <section class="card" aria-labelledby="t-cen">
+    <h2 id="t-cen">Centros de trabajo</h2>
+    <ul class="lista" id="l-cen"></ul>
+    <div class="vacio" id="v-cen">Añade la tienda: estando dentro, pulsa «Usar mi posición», ponle nombre y guarda. Así cada fichaje comprueba la distancia.</div>
+    <div class="fila">
+      <label class="f" for="c-nom">Nombre<input type="text" id="c-nom" placeholder="Tienda"></label>
+      <label class="f" for="c-lat">Latitud<input type="text" id="c-lat" inputmode="decimal" placeholder="40.4168"></label>
+      <label class="f" for="c-lng">Longitud<input type="text" id="c-lng" inputmode="decimal" placeholder="-3.7038"></label>
+      <label class="f" for="c-rad">Radio (m)<input type="number" id="c-rad" min="20" max="5000" value="100"></label>
+    </div>
+    <div class="fila">
+      <button type="button" id="b-aqui">Usar mi posición</button>
+      <button type="button" class="prim" id="b-cen">Guardar centro</button>
+      <span class="muted peq" id="c-msg" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <footer>Registro diario de jornada (art. 34.9 del Estatuto de los Trabajadores). Los fichajes no se pueden cambiar ni borrar; consérvalos 4 años.</footer>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(()=>{
+  const $=id=>document.getElementById(id);
+  const DIA=86400000;
+  let db=null,downloads=null,user=null,uid=null,centros=[],regs=[],pos=null,posEn=0,gpsError=null,ocupado=false,nombres={};
+
+  // ---------- tiempo ----------
+  const pad=n=>String(n).padStart(2,'0');
+  const hm=ts=>{const d=new Date(ts);return pad(d.getHours())+':'+pad(d.getMinutes())};
+  const inicioDia=ts=>{const d=new Date(ts);d.setHours(0,0,0,0);return d.getTime()};
+  const inicioSem=ts=>{const d=new Date(inicioDia(ts));return d.getTime()-((d.getDay()+6)%7)*DIA};
+  const dur=ms=>{const m=Math.max(0,Math.round(ms/60000));return Math.floor(m/60)+' h '+pad(m%60)};
+  const diaTxt=ts=>new Date(ts).toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // empareja entradas y salidas en orden; una entrada abierta cuenta hasta ahora
+  function trabajado(lista,desde,hasta,ahora){
+    let t=0,abierta=null;
+    for(const r of lista.filter(r=>r.ts>=desde&&r.ts<hasta).sort((a,b)=>a.ts-b.ts)){
+      if(r.tipo==='entrada')abierta=r.ts;else if(abierta!=null){t+=r.ts-abierta;abierta=null}}
+    if(abierta!=null&&ahora>=desde&&ahora<hasta)t+=ahora-abierta;
+    return t}
+  function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true},3500)}
+
+  function tic(){const d=new Date();
+    $('hora').innerHTML=pad(d.getHours())+':'+pad(d.getMinutes())+'<small>'+pad(d.getSeconds())+'</small>';
+    const f=d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});$('fecha').textContent=f.charAt(0).toUpperCase()+f.slice(1);
+    if(d.getSeconds()===0)render()}
+  tic();setInterval(tic,1000);
+
+  // ---------- GPS ----------
+  function distancia(a,b){const R=6371000,r=x=>x*Math.PI/180,dLa=r(b.lat-a.lat),dLo=r(b.lng-a.lng);
+    const h=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+  function leerGPS(){return new Promise((ok,ko)=>{
+    if(!('geolocation' in navigator))return ko({code:0});
+    navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy)}),ko,{enableHighAccuracy:true,timeout:15000,maximumAge:0})})}
+  const ERR_GPS=e=>e&&e.code===1?'El permiso de ubicación está denegado. Actívalo en los ajustes del navegador para esta página.'
+    :e&&e.code===3?'El GPS tardó demasiado. Prueba otra vez junto a una ventana.':'Este navegador no da la ubicación.';
+  async function actualizarGPS(){
+    try{pos=await leerGPS();posEn=Date.now();gpsError=null;
+      const con=centros.filter(c=>c.lat!=null);
+      if(con.length)$('centro').value=con.map(c=>[c,distancia(pos,c)]).sort((a,b)=>a[1]-b[1])[0][0].id}
+    catch(e){pos=null;gpsError=ERR_GPS(e)}
+    pintarUbic()}
+  const centroSel=()=>centros.find(c=>c.id===$('centro').value)||null;
+  function comprobacion(){
+    const c=centroSel();
+    if(!pos||Date.now()-posEn>5*60000)return{v:'sin-gps'};
+    if(!c||c.lat==null)return{v:'gps-sin-centro',...pos};
+    const d=Math.round(distancia(pos,c));
+    return{v:d<=(c.radio||100)?'gps-ok':'gps-fuera',dist:d,...pos}}
+  const VER={'gps-ok':['in','En el centro'],'gps-fuera':['bad','Fuera del radio'],'gps-sin-centro':['warn','GPS sin centro'],'sin-gps':['warn','Sin GPS']};
+  function pintarUbic(){
+    const k=comprobacion(),c=centroSel(),p=$('ubic-txt');
+    if(k.v==='sin-gps')p.innerHTML=gpsError?'<b>Sin ubicación.</b> '+esc(gpsError)+' Puedes fichar igual: quedará marcado «Sin GPS».'
+      :'Al pulsar «Fichar» se pide tu ubicación. El móvil te preguntará la primera vez: elige «Permitir».';
+    else if(k.v==='gps-sin-centro')p.innerHTML='<b>Ubicación obtenida</b> (±'+k.acc+' m). Elige un centro con coordenadas para comprobar la distancia.';
+    else p.innerHTML=(k.v==='gps-ok'?'<b>Estás en ':'<b>Estás fuera de ')+esc(c.nombre)+'</b>: a '+k.dist+' m (radio '+c.radio+' m, precisión ±'+k.acc+' m).';
+    pintarBoton()}
+  $('b-ubic').onclick=async()=>{const b=$('b-ubic');b.disabled=true;b.textContent='Buscando…';await actualizarGPS();b.disabled=false;b.textContent='Comprobar ahora'};
+  $('centro').onchange=pintarUbic;
+
+  // ---------- mis fichajes ----------
+  const mios=()=>regs.filter(r=>r.uid===uid);
+  const ultimo=l=>l.length?l.reduce((a,b)=>b.ts>a.ts?b:a):null;
+  function pintarBoton(){
+    const u=ultimo(mios()),dentro=u&&u.tipo==='entrada',b=$('b-fichar');
+    b.className='fichar '+(dentro?'salir':'entrar');
+    b.firstChild.nodeValue=dentro?'Fichar salida':'Fichar entrada';
+    const k=comprobacion(),c=centroSel();
+    $('b-sub').textContent=ocupado?'Buscando ubicación…':!db?'Inicia sesión para fichar':(k.v==='sin-gps'?'Se comprobará la ubicación':VER[k.v][1])+(c?' · '+c.nombre:'');
+    b.disabled=!db||!uid||ocupado}
+  $('b-fichar').onclick=async()=>{
+    if(!db||!uid||ocupado)return;
+    ocupado=true;pintarBoton();
+    await actualizarGPS();
+    const u=ultimo(mios()),tipo=u&&u.tipo==='entrada'?'salida':'entrada',c=centroSel(),k=comprobacion();
+    const r={uid,tipo,ts:Date.now(),centroId:c?c.id:null,centroNombre:c?c.nombre:null,verificacion:k.v,
+      lat:k.lat??null,lng:k.lng??null,precision:k.acc??null,distancia:k.dist??null,nota:$('nota').value.trim()||null};
+    try{await db.collection('registros').add(r);$('nota').value='';
+      toast((tipo==='entrada'?'Entrada':'Salida')+' a las '+hm(r.ts)+' · '+VER[k.v][1])}
+    catch(e){toast('No se guardó el fichaje. Revisa la conexión.')}
+    ocupado=false;pintarBoton()};
+
+  function render(){
+    const ahora=Date.now(),l=mios(),u=ultimo(l),dentro=u&&u.tipo==='entrada';
+    $('pill').className='pill '+(dentro?'in':'out');$('pill').textContent=dentro?'Dentro':'Fuera';
+    $('desde').textContent=u?(dentro?'Desde las ':'Última salida a las ')+hm(u.ts)+(u.ts<inicioDia(ahora)?' ('+diaTxt(u.ts)+')':'')+' · '+(u.centroNombre||'sin centro'):'';
+    $('h-hoy').textContent=dur(trabajado(l,inicioDia(ahora),inicioDia(ahora)+DIA,ahora));
+    $('h-sem').textContent=dur(trabajado(l,inicioSem(ahora),inicioSem(ahora)+7*DIA,ahora));
+    const hoy=l.filter(r=>r.ts>=inicioDia(ahora)).sort((a,b)=>b.ts-a.ts);
+    $('v-hoy').hidden=hoy.length>0;
+    $('l-hoy').innerHTML=hoy.map(r=>{const v=VER[r.verificacion]||VER['sin-gps'];
+      return `<li><span class="hh">${hm(r.ts)}</span><span class="tipo ${r.tipo==='entrada'?'in':'out'}">${r.tipo}</span><span class="donde">${esc(r.centroNombre||'Sin centro')}${r.distancia!=null?' <span class="muted peq">· '+r.distancia+' m</span>':''}${r.nota?'<br><span class="muted peq">'+esc(r.nota)+'</span>':''}</span><span class="pill ${v[0]}">${v[1]}</span></li>`}).join('');
+    let f='';
+    for(let i=0;i<7;i++){const d=inicioDia(ahora)-i*DIA,dl=l.filter(r=>r.ts>=d&&r.ts<d+DIA).sort((a,b)=>a.ts-b.ts);
+      const e=dl.find(r=>r.tipo==='entrada'),s=dl.filter(r=>r.tipo==='salida').pop();
+      f+=`<tr><td>${i?diaTxt(d):'Hoy'}</td><td class="num">${e?hm(e.ts):'—'}</td><td class="num">${s?hm(s.ts):'—'}</td><td class="num">${dl.length?dur(trabajado(l,d,d+DIA,ahora)):'—'}</td></tr>`}
+    $('t-dias').innerHTML=f;
+    pintarEquipo();pintarBoton()}
+
+  // ---------- equipo ----------
+  const nombre=id=>nombres[id]||(id===uid?'Yo':'Persona sin nombre');
+  async function cargarNombres(ids){
+    const faltan=ids.filter(id=>!(id in nombres));if(!faltan.length||!user)return;
+    try{const p=await user.profiles(faltan);faltan.forEach(id=>{nombres[id]=(p[id]&&p[id].name)||''})}catch(e){}
+    pintarEquipo()}
+  function pintarEquipo(){
+    const ahora=Date.now(),ids=[...new Set(regs.map(r=>r.uid))];
+    cargarNombres(ids);
+    $('v-eq').hidden=ids.length>0;
+    $('t-eq-body').innerHTML=ids.map(id=>{const l=regs.filter(r=>r.uid===id),u=ultimo(l),dentro=u.tipo==='entrada',v=VER[u.verificacion]||VER['sin-gps'];
+      return{u,html:`<tr><td>${esc(nombre(id))}${id===uid?' <span class="muted">(tú)</span>':''}</td><td><span class="pill ${dentro?'in':'out'}">${dentro?'Dentro':'Fuera'}</span></td><td class="num">${u.ts<inicioDia(ahora)?diaTxt(u.ts)+' ':''}${hm(u.ts)}</td><td>${esc(u.centroNombre||'—')} <span class="pill ${v[0]}">${v[1]}</span></td><td class="num">${dur(trabajado(l,inicioDia(ahora),inicioDia(ahora)+DIA,ahora))}</td></tr>`}})
+      .sort((a,b)=>b.u.ts-a.u.ts).map(x=>x.html).join('')}
+
+  // ---------- CSV ----------
+  const celda=x=>{const s=x==null?'':String(x);return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+  const CAB='Persona;Fecha;Hora;Tipo;Centro;Ubicación;Distancia (m);Latitud;Longitud;Precisión (m);Nota';
+  const filas=l=>l.sort((a,b)=>a.ts-b.ts).map(r=>[nombre(r.uid),new Date(r.ts).toLocaleDateString('es-ES'),hm(r.ts),r.tipo,r.centroNombre,(VER[r.verificacion]||VER['sin-gps'])[1],r.distancia,r.lat,r.lng,r.precision,r.nota].map(celda).join(';'));
+  const mesActual=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)};
+  const rango=m=>{const[y,n]=m.split('-').map(Number);return[new Date(y,n-1,1).getTime(),new Date(y,n,1).getTime()]};
+  $('mes').value=mesActual();
+  async function delMes(m){const[a,b]=rango(m);
+    const s=await db.collection('registros').where('ts','>=',a).where('ts','<',b).get();
+    const l=s.docs.map(d=>d.data());await cargarNombres([...new Set(l.map(r=>r.uid))]);return l}
+  async function bajar(nombreArchivo,l){
+    if(!l.length){toast('No hay fichajes en ese mes.');return}
+    try{await downloads.save({filename:nombreArchivo,data:'﻿'+[CAB,...filas(l)].join('\r\n')})}catch(e){toast('No se pudo descargar el archivo.')}}
+  $('b-csv-yo').onclick=async()=>{if(!db)return;try{const m=mesActual();await bajar('mis-fichajes-'+m+'.csv',(await delMes(m)).filter(r=>r.uid===uid))}catch(e){toast('No se pudieron leer los fichajes.')}};
+  $('b-csv-todo').onclick=async()=>{if(!db)return;try{const m=$('mes').value||mesActual();await bajar('registro-jornada-'+m+'.csv',await delMes(m))}catch(e){toast('No se pudieron leer los fichajes.')}};
+
+  // ---------- centros ----------
+  function pintarCentros(){
+    const s=$('centro'),antes=s.value;
+    s.innerHTML=centros.length?'<option value="">Sin centro</option>'+centros.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join(''):'<option value="">Sin centros todavía</option>';
+    if(centros.some(c=>c.id===antes))s.value=antes;else if(centros.length===1)s.value=centros[0].id;
+    $('v-cen').hidden=centros.length>0;
+    $('l-cen').innerHTML=centros.map(c=>`<li><span class="hh">${c.radio} m</span><span class="tipo">${esc(c.nombre)}</span><span class="donde muted peq">${c.lat!=null?c.lat.toFixed(5)+', '+c.lng.toFixed(5):'sin coordenadas'}</span><button type="button" class="enlace" data-quitar="${esc(c.id)}">Quitar</button></li>`).join('');
+    pintarUbic()}
+  $('l-cen').onclick=async e=>{const b=e.target.closest('[data-quitar]');if(!b||!db)return;
+    if(b.dataset.seguro!=='1'){b.dataset.seguro='1';b.textContent='¿Seguro? Quitar';return}
+    await db.collection('centros').doc(b.dataset.quitar).delete();toast('Centro quitado')};
+  $('b-aqui').onclick=async()=>{$('c-msg').textContent='Buscando posición…';
+    try{const p=await leerGPS();$('c-lat').value=p.lat.toFixed(6);$('c-lng').value=p.lng.toFixed(6);$('c-msg').textContent='Posición tomada (±'+p.acc+' m).'}
+    catch(e){$('c-msg').textContent=ERR_GPS(e)}};
+  $('b-cen').onclick=async()=>{
+    if(!db){$('c-msg').textContent='Inicia sesión para guardar centros.';return}
+    const nom=$('c-nom').value.trim(),la=parseFloat($('c-lat').value.replace(',','.')),lo=parseFloat($('c-lng').value.replace(',','.'));
+    const rad=Math.min(5000,Math.max(20,parseInt($('c-rad').value,10)||100));
+    if(!nom){$('c-msg').textContent='Escribe un nombre para el centro.';return}
+    const ok=isFinite(la)&&isFinite(lo)&&Math.abs(la)<=90&&Math.abs(lo)<=180;
+    if(!ok){$('c-msg').textContent='Faltan las coordenadas. Pulsa «Usar mi posición» estando en el sitio, o cópialas de Google Maps.';return}
+    await db.collection('centros').add({nombre:nom,lat:la,lng:lo,radio:rad,creado:Date.now()});
+    ['c-nom','c-lat','c-lng'].forEach(id=>{$(id).value=''});$('c-msg').textContent='Centro guardado.'};
+
+  // ---------- arranque ----------
+  const bajarNav={async save({filename,data}){const b=new Blob([data],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}};
+  function sinNube(){downloads=downloads||bajarNav;$('sync').textContent='Sin conexión con la nube: no se puede fichar';render();pintarCentros()}
+  render();pintarCentros();
+  (async()=>{
+    if(!window.claude||!window.claude.use){sinNube();return}
+    try{downloads=await window.claude.use('downloads')}catch(e){downloads=bajarNav}
+    let d=null;try{d=await window.claude.use('db')}catch(e){}
+    if(!d){sinNube();return}
+    try{user=await window.claude.use('user');uid=await user.id()}catch(e){}
+    db=d;$('sync').textContent='Sincronizado en todos tus dispositivos';$('sync').classList.add('ok');
+    const err=()=>{$('sync').textContent='Sin conexión: los fichajes se subirán al volver';$('sync').classList.remove('ok')};
+    db.collection('centros').onSnapshot(s=>{centros=s.docs.map(x=>({...x.data(),id:x.id})).sort((a,b)=>(a.creado||0)-(b.creado||0));pintarCentros()},err);
+    db.collection('registros').where('ts','>=',inicioDia(Date.now())-40*DIA).onSnapshot(s=>{regs=s.docs.map(x=>x.data());render()},err);
+  })().catch(sinNube);
+})();
+</script>
+
+</body></html>

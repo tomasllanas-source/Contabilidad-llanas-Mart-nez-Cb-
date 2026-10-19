@@ -94,6 +94,8 @@
     const consulta=q=>({
       orderBy:(c,d)=>consulta(F.query(q,F.orderBy(c,d))),
       limit:n=>consulta(F.query(q,F.limit(n))),
+      where:(c,o,v)=>consulta(F.query(q,F.where(c,o,v))),
+      get:async()=>{const s=await F.getDocs(q);return{docs:s.docs.map(snap)}},
       onSnapshot:(ok,ko)=>F.onSnapshot(q,s=>ok({docs:s.docs.map(snap)}),e=>{ko&&ko(e);avisar(e)})});
     return{collection(ruta){const ref=F.collection(fs,RAIZ+ruta);
       return{...consulta(ref),

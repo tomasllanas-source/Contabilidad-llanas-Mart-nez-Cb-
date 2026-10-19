@@ -12,8 +12,20 @@ service cloud.firestore {
           'maribelllanas1983@gmail.com'
         ];
     }
-    match /negocio/{resto=**} {
-      allow read, write: if permitido();
+    match /negocio/{app}/{resto=**} {
+      allow read: if permitido();
+      // el fichaje tiene sus propias reglas abajo
+      allow write: if permitido() && app != 'fichaje';
+    }
+    match /negocio/fichaje/centros/{id} {
+      allow write: if permitido();
+    }
+    // Registro de jornada: cada persona ficha solo a su nombre y nadie puede cambiar ni borrar un fichaje.
+    match /negocio/fichaje/registros/{id} {
+      allow create: if permitido()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.tipo in ['entrada', 'salida']
+        && request.resource.data.ts is number;
     }
   }
 }
