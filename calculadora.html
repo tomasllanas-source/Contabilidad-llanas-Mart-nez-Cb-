@@ -784,7 +784,7 @@ td{padding:7pt 0;border-bottom:1px dotted #aaa}td:nth-child(2),td:nth-child(3),t
 
   // ---------- facturas ----------
   let sample=null, maxFotos=5, fotos=[], lineas=[], ctl=null;
-  const ERR={not_granted:'No has dado permiso a Claude para leer la factura. Vuelve a abrir la página y acéptalo.',rate_limited:'Demasiadas lecturas seguidas. Espera un minuto y vuelve a probar.',
+  const ERR={not_granted:'No has dado permiso a Claude para leer la factura. Vuelve a abrir la página y acéptalo.',daily_quota:'Se han acabado las lecturas gratis de hoy. Mañana vuelven.',rate_limited:'Demasiadas lecturas seguidas. Espera un minuto y vuelve a probar.',
     image_rejected:'No se pudo usar una de las fotos. Prueba con otra foto más clara.',invalid_json:'No se pudo leer bien la factura. Prueba con una foto más recta y con más luz.',
     refused:'Claude no pudo leer esta imagen. Comprueba que es una factura.',session_expired:'Tu sesión ha caducado. Recarga la página.',prompt_too_large:'Hay demasiados datos. Prueba con menos fotos a la vez.'};
   const errTxt=e=>ERR[e&&e.code]||'No se pudo leer la factura. Inténtalo de nuevo.';

@@ -168,13 +168,18 @@ const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
       if(!window.FIREBASE_IA)throw Object.assign(new Error('IA no activada'),{code:'not_granted'});
       const x=await listo;const AI=await import(U+'firebase-ai.js');
       const ai=AI.getAI(x.fb,{backend:new AI.GoogleAIBackend()});
-      const modelo=AI.getGenerativeModel(ai,{model:window.FIREBASE_IA_MODELO||'gemini-3.8-flash',generationConfig:{responseMimeType:'application/json'}});
-      const COD=e=>/429|quota|exhausted/i.test(String(e&&e.message))?'rate_limited':/safety|blocked/i.test(String(e&&e.message))?'refused':'error';
+      // el plan gratis da un cupo diario pequeño por modelo: si uno se agota (o no existe), se prueba el siguiente
+      const MODELOS=[...new Set([window.FIREBASE_IA_MODELO||'gemini-3.8-flash','gemini-3.5-flash','gemini-3.5-flash-lite'])]
+        .map(m=>AI.getGenerativeModel(ai,{model:m,generationConfig:{responseMimeType:'application/json'}}));
+      const COD=e=>/429|quota|exhausted/i.test(String(e&&e.message))?(/per ?day|PerDay|retry in \d+h/i.test(String(e&&e.message))?'daily_quota':'rate_limited'):/404|not found|no longer available/i.test(String(e&&e.message))?'no_model':/safety|blocked/i.test(String(e&&e.message))?'refused':'error';
+      async function generar(partes){let ult;
+        for(const m of MODELOS){try{return await m.generateContent(partes)}catch(e){ult=e;if(!['daily_quota','rate_limited','no_model'].includes(COD(e)))break}}
+        throw ult}
       return{limits:async()=>({images:{maxCount:5}}),
         async json(prompt,o={}){
           const partes=[{text:prompt}];for(const im of o.images||[])partes.push({inlineData:{mimeType:im.type||'image/jpeg',data:await aTexto(im)}});
           const corte=new Promise((_,ko)=>{if(o.signal){if(o.signal.aborted)ko({code:'cancelled'});o.signal.addEventListener('abort',()=>ko({code:'cancelled'}))}});
-          let r;try{r=await Promise.race([modelo.generateContent(partes),corte])}catch(e){if(e&&e.code==='cancelled')throw e;console.error(e);throw Object.assign(new Error(e&&e.message),{code:COD(e)})}
+          let r;try{r=await Promise.race([generar(partes),corte])}catch(e){if(e&&e.code==='cancelled')throw e;console.error(e);throw Object.assign(new Error(e&&e.message),{code:COD(e)})}
           const t=String(r.response.text()||'').trim().replace(/^```(?:json)?\s*|\s*```$/g,'');
           try{return JSON.parse(t)}catch(e){throw Object.assign(new Error('JSON'),{code:'invalid_json'})}}};
     }
