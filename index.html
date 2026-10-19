@@ -313,6 +313,14 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   <div class="vista" id="v-c" hidden>
     <section class="panel">
       <h2>Cierre de caja</h2>
+      <div class="foto" id="c-foto" hidden>
+        <strong style="font-size:14px">Foto del cierre de caja (ticket Z o resumen del TPV): relleno los datos</strong>
+        <div class="btns">
+          <label class="btn" for="c-file" style="display:inline-block;color:var(--fg)">Hacer foto o elegir imagen</label>
+          <input type="file" id="c-file" accept="image/*">
+        </div>
+        <p class="fstat" id="c-fstat"></p>
+      </div>
       <div class="grid2">
         <label>Fecha<input id="c-fecha" type="date"></label>
         <label>Caja<select id="c-caja"><option value="1">Caja 1</option><option value="2">Caja 2</option><option value="3">Caja 3</option></select></label>
@@ -737,6 +745,32 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     v.nota=$('c-nota').value.trim();$('c-guardar').disabled=true;
     try{await guardar('ventas',v);toast((v.caja>1?'Caja '+v.caja+' del ':'Caja del ')+fechaCorta(v.fecha)+' guardada');}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
     $('c-guardar').disabled=false};
+  // foto del cierre de caja: la IA lee el ticket y rellena el formulario (la foto no se guarda)
+  $('c-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file||!sample)return;
+    const st=$('c-fstat');st.className='fstat';
+    const img=await reducir(file).catch(()=>null);if(!img){st.className='fstat err';st.textContent='No se pudo abrir esa foto. Prueba con otra.';return}
+    st.textContent='Leyendo el cierre de caja…';
+    try{const prompt=`Esta imagen es el cierre de caja de un día (ticket Z de la caja registradora, resumen del datáfono o una nota a mano) de una carnicería en España. Extrae los datos y responde SOLO con JSON con esta forma:
+{"fecha":"AAAA-MM-DD","total":número total vendido con IVA,"efectivo":número,"tarjeta":número,"otros":número cobrado por Bizum, transferencia u otros medios,"por_iva":[{"iva_pct":número,"total":número vendido a ese tipo CON IVA}]}
+Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezca (si el ticket da la base y la cuota, suma las dos). Si no ves un dato, pon null.`;
+      const d=await sample.json(prompt,{images:[img],modelTier:'default'});
+      if(!d||typeof d!=='object')throw new Error('vacío');
+      if(d.fecha&&/^\d{4}-\d{2}-\d{2}$/.test(d.fecha)&&d.fecha!==$('c-fecha').value){$('c-fecha').value=d.fecha;cargarCaja()}
+      const num=x=>x!=null&&isFinite(+x)?r2(+x):null;
+      let efe=num(d.efectivo),tar=num(d.tarjeta),otr=num(d.otros)||0;const tot=num(d.total);
+      // si solo vienen el total y la tarjeta, lo que falta es efectivo
+      if(tot&&efe==null)efe=r2(Math.max(0,tot-(tar||0)-otr));
+      if(!efe&&!tar&&!otr)throw new Error('sin importes');
+      $('c-efe').value=efe?fmtIn(efe):'';$('c-tar').value=tar?fmtIn(tar):'';$('c-otr').value=otr?fmtIn(otr):'';
+      const pi=(Array.isArray(d.por_iva)?d.por_iva:[]).map(x=>({t:+x.iva_pct,a:num(x.total)})).filter(x=>TIPOS_V.includes(x.t)&&x.a);
+      TIPOS_V.forEach(k=>$('c-m'+k).value='');
+      if(pi.length===1){$('c-pct').value=pi[0].t;$('c-mix').checked=false}
+      else if(pi.length>1){const pr=pi.reduce((a,b)=>b.a>a.a?b:a);$('c-pct').value=pr.t;$('c-mix').checked=true;pi.filter(x=>x.t!==pr.t).forEach(x=>$('c-m'+x.t).value=fmtIn(x.a))}
+      $('c-mix-w').hidden=!$('c-mix').checked;calcCaja();
+      const suma=r2((efe||0)+(tar||0)+otr);
+      st.textContent='Listo. Revisa los datos antes de guardar'+(tot&&Math.abs(suma-tot)>0.05?' (ojo: efectivo + tarjeta + otros da '+eur(suma)+' y el ticket dice '+eur(tot)+').':pi.length>1?' (lleva varios tipos de IVA; he puesto lo de cada uno).':'.');
+    }catch(err){st.className='fstat err';st.textContent=msgLectura(err)}
+  });
   function renderCaja(){const v=V().filter(x=>enRango(x.fecha)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     $('c-sum').textContent=eur(sum(v,'total'));$('c-sum-tar').textContent=eur(sum(v,'tarjeta'));$('c-sum-efe').textContent=eur(sum(v,'efectivo'));$('c-sum-otr').textContent=eur(sum(v,'otros'));
     $('c-lista').innerHTML=v.length?v.map(x=>`<div class="item"><div><div class="name">${cap(fechaCorta(x.fecha))}${(x.caja||1)>1||v.some(y=>y!==x&&y.fecha===x.fecha)?' · Caja '+(x.caja||1):''}</div><div class="meta">Tarjeta ${eur(x.tarjeta)} · Efectivo ${eur(x.efectivo)}${x.otros?' · Bizum '+eur(x.otros):''}${x.nota?' · '+esc(x.nota):''}${x.ej?' <span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>base ${eur(x.base)}${x.desglose?' · IVA '+x.desglose.map(d=>d.pct+' %').join(' y '):''}</small></div>${x.ej?'':`<div class="acts"><button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay cajas apuntadas en este periodo. Rellena el cierre de arriba al acabar el día.</div>';
@@ -856,8 +890,9 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
       else if(tipos.length>1&&tipos.every(t=>TIPOS_IVA.includes(t))&&Math.abs(sumaMix-r2(total))<0.06){baseFoto=null;setMix(true);TIPOS_IVA.forEach(t=>$('g-b'+t).value=porTipo[t]?fmtIn(porTipo[t]):'')}
       else if(bases.length&&sb){baseFoto={total:r2(total),base:sb}}
       calcGasto();st.textContent='Listo. Revisa los datos antes de guardar'+($('g-mix').checked?' (la factura lleva varios tipos de IVA; he puesto la base de cada uno).':tipos.length>1?' (la factura lleva varios tipos de IVA; ya están sumados).':'.');
-    }catch(err){st.className='fstat err';st.textContent=err&&err.code==='no_credit'?'Se ha acabado el saldo para leer facturas. Recárgalo en aistudio.google.com (Facturación); mientras, rellena los datos a mano.':err&&err.code==='daily_quota'?'Se han acabado las lecturas gratis de hoy. Mañana vuelven; mientras, rellena los datos a mano (la foto se guarda igual).':err&&err.code==='rate_limited'?'Demasiadas lecturas seguidas. Espera un minuto y vuelve a probar.':'No he podido leer esta foto. Prueba con otra más nítida o rellena los datos a mano.'}
+    }catch(err){st.className='fstat err';st.textContent=msgLectura(err)}
   });
+  function msgLectura(err){return err&&err.code==='no_credit'?'Se ha acabado el saldo para leer facturas. Recárgalo en aistudio.google.com (Facturación); mientras, rellena los datos a mano.':err&&err.code==='daily_quota'?'Se han acabado las lecturas gratis de hoy. Mañana vuelven; mientras, rellena los datos a mano (la foto se guarda igual).':err&&err.code==='rate_limited'?'Demasiadas lecturas seguidas. Espera un minuto y vuelve a probar.':'No he podido leer esta foto. Prueba con otra más nítida o rellena los datos a mano.'}
 
   // ---------- banco ----------
   const TIPOS_B=['Tributos e impuestos','Seguridad Social','Comisiones del banco','Comisión TPV (tarjetas)','Préstamo o leasing','Seguros','Recibos domiciliados','Otros'];
@@ -1034,7 +1069,7 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
   (async()=>{
     if(!window.claude||!window.claude.use){verLocal();return}
     try{downloads=await window.claude.use('downloads')}catch(e){downloads=null}
-    try{const sm=await window.claude.use('sample');const lim=sm?await sm.limits().catch(()=>null):null;if(sm&&lim&&lim.images){sample=sm;$('g-foto').hidden=false}}catch(e){}
+    try{const sm=await window.claude.use('sample');const lim=sm?await sm.limits().catch(()=>null):null;if(sm&&lim&&lim.images){sample=sm;$('g-foto').hidden=false;$('c-foto').hidden=false}}catch(e){}
     pintarFotoForm();
     let d=null;try{d=await window.claude.use('db')}catch(e){}
     if(!d){verLocal();return}
