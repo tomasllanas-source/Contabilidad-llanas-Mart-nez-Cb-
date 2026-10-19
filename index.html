@@ -331,6 +331,11 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     </section>
     <section class="panel">
       <div class="sumline"><h3>Cajas del periodo</h3><span>Total <b id="c-sum">–</b></span></div>
+      <div class="calc" id="c-formas">
+        <div><span>Con tarjeta</span><b id="c-sum-tar">–</b></div>
+        <div><span>En efectivo</span><b id="c-sum-efe">–</b></div>
+        <div><span>Bizum y otros</span><b id="c-sum-otr">–</b></div>
+      </div>
       <div class="items" id="c-lista"></div>
     </section>
   </div>
@@ -710,7 +715,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     try{await guardar('ventas',v);toast((v.caja>1?'Caja '+v.caja+' del ':'Caja del ')+fechaCorta(v.fecha)+' guardada');}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
     $('c-guardar').disabled=false};
   function renderCaja(){const v=V().filter(x=>enRango(x.fecha)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-    $('c-sum').textContent=eur(sum(v,'total'));
+    $('c-sum').textContent=eur(sum(v,'total'));$('c-sum-tar').textContent=eur(sum(v,'tarjeta'));$('c-sum-efe').textContent=eur(sum(v,'efectivo'));$('c-sum-otr').textContent=eur(sum(v,'otros'));
     $('c-lista').innerHTML=v.length?v.map(x=>`<div class="item"><div><div class="name">${cap(fechaCorta(x.fecha))}${(x.caja||1)>1||v.some(y=>y!==x&&y.fecha===x.fecha)?' · Caja '+(x.caja||1):''}</div><div class="meta">Tarjeta ${eur(x.tarjeta)} · Efectivo ${eur(x.efectivo)}${x.otros?' · Bizum '+eur(x.otros):''}${x.nota?' · '+esc(x.nota):''}${x.ej?' <span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>base ${eur(x.base)}</small></div>${x.ej?'':`<div class="acts"><button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay cajas apuntadas en este periodo. Rellena el cierre de arriba al acabar el día.</div>';
     $('c-lista').querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const x=ventas.find(y=>y.id===b.dataset.ed);if(!x)return;$('c-fecha').value=x.fecha;$('c-caja').value=x.caja||1;cargarCaja();window.scrollTo({top:0,behavior:'smooth'})});
     $('c-lista').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>confirmarBorrar('ventas',b.dataset.del));
