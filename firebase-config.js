@@ -13,7 +13,7 @@ window.FIREBASE_CONFIG={
 };
 // Fotos de facturas: con false se guardan dentro de la base de datos (plan gratis).
 // Pon true solo si activas Firebase Storage (plan Blaze) y pegas storage.rules.
-window.FIREBASE_FOTOS=false;
+window.FIREBASE_FOTOS=true;
 // Leer facturas con IA (Gemini mediante Firebase AI Logic). En España exige el plan Blaze:
 // activa «Firebase AI Logic» en la consola y pon true.
 window.FIREBASE_IA=true;
