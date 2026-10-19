@@ -171,7 +171,7 @@ const S=await import(U+'firebase-storage.js');const st=S.getStorage(x.fb);
       // el plan gratis da un cupo diario pequeño por modelo: si uno se agota (o no existe), se prueba el siguiente
       const MODELOS=[...new Set([window.FIREBASE_IA_MODELO||'gemini-3.8-flash','gemini-3.5-flash','gemini-3.5-flash-lite'])]
         .map(m=>AI.getGenerativeModel(ai,{model:m,generationConfig:{responseMimeType:'application/json'}}));
-      const COD=e=>/429|quota|exhausted/i.test(String(e&&e.message))?(/per ?day|PerDay|retry in \d+h/i.test(String(e&&e.message))?'daily_quota':'rate_limited'):/404|not found|no longer available/i.test(String(e&&e.message))?'no_model':/safety|blocked/i.test(String(e&&e.message))?'refused':'error';
+      const COD=e=>/prepay|credits are depleted|billing/i.test(String(e&&e.message))?'no_credit':/429|quota|exhausted/i.test(String(e&&e.message))?(/per ?day|PerDay|retry in \d+h/i.test(String(e&&e.message))?'daily_quota':'rate_limited'):/404|not found|no longer available/i.test(String(e&&e.message))?'no_model':/safety|blocked/i.test(String(e&&e.message))?'refused':'error';
       async function generar(partes){let ult;
         for(const m of MODELOS){try{return await m.generateContent(partes)}catch(e){ult=e;if(!['daily_quota','rate_limited','no_model'].includes(COD(e)))break}}
         throw ult}
