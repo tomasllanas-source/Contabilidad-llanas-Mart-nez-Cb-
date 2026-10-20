@@ -246,7 +246,7 @@ input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 
   <!-- INGREDIENTES -->
   <section class="panel" id="p-i" hidden>
-    <p style="margin:0;color:var(--muted)">Tu lista de ingredientes y materiales con su precio de compra sin IVA. Al cambiar un precio aquí, las recetas que cargues usarán el nuevo.</p>
+    <p style="margin:0;color:var(--muted)">Tu lista de ingredientes y materiales con su precio de compra sin IVA. Al cambiar un precio aquí, las recetas que cargues usarán el nuevo. Abajo salen también tus productos comprados para revender, para que los uses en tus elaborados.</p>
     <div class="grid2">
       <label>Ingrediente o material<input id="i-nombre" type="text" placeholder="Ej.: Pimentón de la Vera"></label>
       <label>Se compra por
@@ -434,7 +434,14 @@ function calcular(d){
   function refrescar(){renderCatalogo();renderLista();calc();}
 
   // ---------- receta ----------
-  function buscarCat(nombre){const n=(nombre||'').trim().toLowerCase();return catalogo.find(c=>c.nombre.trim().toLowerCase()===n);}
+  function buscarCat(nombre){const n=(nombre||'').trim().toLowerCase();return disponibles().find(c=>c.nombre.trim().toLowerCase()===n);}
+  // productos comprados para revender: también se pueden usar como ingrediente, a su coste real por kg
+  function comprados(){
+    const ya=new Set(catalogo.map(c=>norm(c.nombre)));
+    return productos.filter(p=>p.tipo==='c'&&p.nombre&&isFinite(p.costeKg)&&!ya.has(norm(p.nombre)))
+      .map(p=>({id:'com:'+p.id,pid:p.id,nombre:p.nombre,unidad:'kg',precio:+p.costeKg,comprado:true}));
+  }
+  const disponibles=()=>[...catalogo,...comprados()];
   let rid=0;
   const CAT2ADD={kg:'g',l:'ml',ud:'ud',m:'m'};
   function addCarne(c={}){
@@ -490,10 +497,10 @@ function calcular(d){
   function pintarPick(k){
     const P=PICK[k],box=$(P.box);if(box.hidden)return;
     const q=norm(box.querySelector('input')?.value),us=usados(k);
-    const lista=[...catalogo].filter(P.filtro).filter(c=>!q||norm(c.nombre).includes(q)).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+    const lista=disponibles().filter(P.filtro).filter(c=>!q||norm(c.nombre).includes(q)).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
     const opts=box.querySelector('.opts');
-    if(!catalogo.filter(P.filtro).length){opts.innerHTML=`<p class="vacio">Tu lista está vacía. Añádelas en la pestaña Ingredientes.</p>`;return;}
-    opts.innerHTML=lista.length?lista.map(c=>`<button type="button" class="opt${us.has(norm(c.nombre))?' on':''}" data-id="${esc(c.id)}"><b>${esc(c.nombre)}</b><span>${eur(c.precio)}/${UN[c.unidad]||c.unidad}</span></button>`).join(''):'<p class="vacio">Nada coincide con la búsqueda.</p>';
+    if(!disponibles().filter(P.filtro).length){opts.innerHTML=`<p class="vacio">Tu lista está vacía. Añádelas en la pestaña Ingredientes.</p>`;return;}
+    opts.innerHTML=lista.length?lista.map(c=>`<button type="button" class="opt${us.has(norm(c.nombre))?' on':''}" data-id="${esc(c.id)}"><b>${esc(c.nombre)}${c.comprado?' <span class="ex">comprado</span>':''}</b><span>${eur(c.precio)}/${UN[c.unidad]||c.unidad}</span></button>`).join(''):'<p class="vacio">Nada coincide con la búsqueda.</p>';
   }
   function abrirPick(k){
     const P=PICK[k],box=$(P.box),abierto=!box.hidden;
@@ -502,7 +509,7 @@ function calcular(d){
     box.innerHTML=`<input type="search" id="${P.box}-q" aria-label="Buscar en mi lista" placeholder="Buscar en mi lista…"><div class="opts"></div><p class="vacio" style="font-size:12px">Toca para añadir a la receta. Toca otra vez para quitarlo.</p>`;
     box.querySelector('input').addEventListener('input',()=>pintarPick(k));
     box.querySelector('.opts').addEventListener('click',e=>{
-      const b=e.target.closest('.opt');if(!b)return;const c=catalogo.find(x=>x.id===b.dataset.id);if(!c)return;
+      const b=e.target.closest('.opt');if(!b)return;const c=disponibles().find(x=>x.id===b.dataset.id);if(!c)return;
       const fila=[...document.querySelectorAll(P.rows)].find(r=>norm(r.querySelector('.n').value)===norm(c.nombre));
       if(fila){fila.remove();}
       else{
@@ -658,9 +665,17 @@ function calcular(d){
   // ---------- catálogo de ingredientes ----------
   function renderCatalogo(){
     try{pintarPick('ing');}catch(e){}
-    $('dl-ing').innerHTML=catalogo.map(c=>`<option value="${esc(c.nombre)}">${esc(c.nombre)} · ${eur(c.precio)}/${UN[c.unidad]}</option>`).join('');
+    $('dl-ing').innerHTML=disponibles().map(c=>`<option value="${esc(c.nombre)}">${esc(c.nombre)} · ${eur(c.precio)}/${UN[c.unidad]}${c.comprado?' · comprado':''}</option>`).join('');
     const box=$('cat');
-    if(!catalogo.length){box.innerHTML='<div class="empty">Tu lista está vacía. Añade la carne, especias, tripa y envases que usas en tus elaborados.</div>';return}
+    const com=comprados().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+    const pintarCom=()=>{if(!com.length)return;
+      const h=document.createElement('div');h.className='sub';h.style.marginTop='14px';h.innerHTML='<b>Productos comprados para revender</b><div style="font-size:12px;color:var(--muted)">También puedes usarlos en tus elaborados, a su coste real por kg. Su precio se cambia en la pestaña Comprado.</div>';box.appendChild(h);
+      com.forEach(c=>{const d=document.createElement('div');d.className='cat';
+        d.innerHTML=`<div class="nm"><span class="t"></span><span class="ex">comprado</span><small>€ por kilo · coste real con merma</small></div><b style="text-align:right">${eur(c.precio)}</b><button type="button" class="del" aria-label="Abrir en Comprado" title="Abrir en Comprado">✎</button>`;
+        d.querySelector('.t').textContent=c.nombre;
+        d.querySelector('.del').onclick=()=>{const p=productos.find(x=>x.id===c.pid);if(p&&p.datos)cargar(JSON.parse(JSON.stringify(p.datos)));};
+        box.appendChild(d);});};
+    if(!catalogo.length){box.innerHTML='<div class="empty">Tu lista está vacía. Añade la carne, especias, tripa y envases que usas en tus elaborados.</div>';pintarCom();return}
     box.innerHTML='';
     [...catalogo].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).forEach(c=>{
       const d=document.createElement('div');d.className='cat';
@@ -674,6 +689,7 @@ function calcular(d){
       d.querySelector('.del').onclick=async()=>{try{await borrarDoc('ingredientes',c.id);toast('Quitado: '+c.nombre)}catch(_){toast('No se pudo quitar.')}};
       box.appendChild(d);
     });
+    pintarCom();
   }
   const syncIG=()=>{const u=$('i-unidad').value;$('i-g-lbl').hidden=!(u==='ud'||u==='l');$('i-g-txt').textContent=u==='l'?'Peso por litro (g)':'Peso por unidad (g)';if(u==='l'&&$('i-g').value==='')$('i-g').value=1000;};
   $('i-unidad').addEventListener('change',syncIG);
@@ -836,7 +852,7 @@ Reglas:
       const pct=(l.precio-a.v)/a.v*100;
       if(l.acc.startsWith('ing:')){const c=catalogo.find(x=>'ing:'+x.id===l.acc);cs.push({nombre:c.nombre,antes:a.v,ahora:l.precio,unidad:l.unidad,pct});nuevos.set(norm(c.nombre),l.precio);}
       else{const p=productos.find(x=>'com:'+x.id===l.acc);cs.push({nombre:p.nombre,antes:a.v,ahora:l.precio,unidad:'kg',pct});
-        const doc=docDeProducto({...JSON.parse(JSON.stringify(p.datos)),compra:l.precio});coms.push({p,doc});}});
+        const doc=docDeProducto({...JSON.parse(JSON.stringify(p.datos)),compra:l.precio});coms.push({p,doc});nuevos.set(norm(p.nombre),doc.costeKg);}});
     if(!cs.length){box.innerHTML=lineas.length?'<h3>Sin cambios en los precios que ya tenías</h3>':'';return;}
     const up=cs.filter(c=>c.pct>0).length,dn=cs.length-up;
     const imp=impactoRecetas(nuevos);
@@ -905,7 +921,7 @@ Reglas:
           hechos.push(`${c.nombre}: ${eur(c.precio)} → ${eur(l.precio)}/${l.unidad}`);
           if(c.precio&&Math.abs(l.precio-c.precio)>=0.005){nuevosIng.set(norm(c.nombre),l.precio);registrarCambio({tipo:'ing',nombre:c.nombre,antes:c.precio,ahora:l.precio,unidad:l.unidad,pct:(l.precio-c.precio)/c.precio*100,origen:'factura',proveedor:facturaProv});}}
         else if(l.acc.startsWith('com:')){const p=productos.find(x=>'com:'+x.id===l.acc);if(!p||!p.datos)continue;
-          const d={...JSON.parse(JSON.stringify(p.datos)),compra:l.precio};const doc=docDeProducto(d);
+          const d={...JSON.parse(JSON.stringify(p.datos)),compra:l.precio};const doc=docDeProducto(d);if(Math.abs(doc.costeKg-p.costeKg)>=0.005)nuevosIng.set(norm(p.nombre),doc.costeKg);
           await guardarDoc('productos',p.id,doc);
           hechos.push(`${p.nombre}: compra ${eur(p.datos.compra)} → ${eur(l.precio)}/kg · PVP ${eur(p.pvpKg)} → ${eur(doc.pvpKg)}/kg`);
           if(p.datos.compra&&Math.abs(l.precio-p.datos.compra)>=0.005)registrarCambio({tipo:'com',nombre:p.nombre,antes:p.datos.compra,ahora:l.precio,unidad:'kg',pct:(l.precio-p.datos.compra)/p.datos.compra*100,origen:'factura',proveedor:facturaProv});}
@@ -949,7 +965,7 @@ Reglas:
     if(!d){verLocal();return;}
     db=d;$('sync').textContent='Sincronizado en todos tus dispositivos';$('sync').classList.add('ok');
     const err=()=>{$('sync').textContent='Sin conexión: los cambios no se guardan';$('sync').classList.remove('ok');};
-    db.collection('productos').onSnapshot(s=>{productos=s.docs.map(x=>({...x.data(),id:x.id}));renderLista();},err);
+    db.collection('productos').onSnapshot(s=>{productos=s.docs.map(x=>({...x.data(),id:x.id}));renderLista();renderCatalogo();},err);
     db.collection('ingredientes').onSnapshot(s=>{catalogo=s.docs.map(x=>({...x.data(),id:x.id}));renderCatalogo();},err);
     try{usr=await window.claude.use('user');uid=usr?await usr.id():null;}catch(e){usr=null;uid=null;}
     if(uid){try{const e=await db.collection('data/users/'+uid).doc('estado').get();if(e.exists)visto=Math.max(visto,+(e.data().visto)||0);}catch(e){}}
