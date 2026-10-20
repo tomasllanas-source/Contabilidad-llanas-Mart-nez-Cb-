@@ -22,6 +22,8 @@
 .nb-caja .nb-link{background:transparent;border:0;color:var(--muted,#5b6662);text-decoration:underline;font-weight:500;font-size:13px;padding:2px 0;justify-self:start}
 .nb-err{color:var(--warn,#a4561a)!important}
 .nb-err:empty{display:none}
+.nb-aviso{position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:60;display:grid;gap:4px;padding:14px 16px;border-radius:12px;background:#a4561a;color:#fff;font:500 15px var(--f-body,system-ui,sans-serif);box-shadow:0 6px 24px rgba(0,0,0,.25);cursor:pointer}
+.nb-aviso small{opacity:.8;font-size:12px}
 .nb-salir{font:500 12px var(--f-body,system-ui,sans-serif);border:0;background:transparent;color:var(--muted,#5b6662);text-decoration:underline;cursor:pointer;padding:0;margin-left:8px}`;
   function estilos(){if(document.getElementById('nb-css'))return;const s=document.createElement('style');s.id='nb-css';s.textContent=css;document.head.appendChild(s)}
   function cuandoListo(fn){document.readyState==='loading'?document.addEventListener('DOMContentLoaded',fn,{once:true}):fn()}
@@ -71,8 +73,16 @@
     s.insertAdjacentElement('afterend',b);b.insertAdjacentElement('afterend',inp)})}
 
   // ---------- arranque de Firebase ----------
-  let fallo=null;
-  const avisar=e=>{console.error(e);const s=document.getElementById('sync');if(s){s.textContent=e&&e.code==='permission-denied'?'Esta cuenta no tiene permiso: revisa los correos en las reglas de Firestore':'No se pudo guardar en la nube';s.classList.remove('ok')}};
+  let fallo=null,correo='';
+  // si la nube rechaza un apunte, la página ya lo había pintado y luego desaparece: se avisa bien visible y con el motivo
+  function aviso(t){cuandoListo(()=>{estilos();let b=document.getElementById('nb-aviso');
+    if(!b){b=document.createElement('div');b.id='nb-aviso';b.className='nb-aviso';b.setAttribute('role','alert');b.onclick=()=>b.remove();document.body.appendChild(b)}
+    b.innerHTML='<b>No se ha guardado</b><span></span><small>Toca para cerrar</small>';b.querySelector('span').textContent=t})}
+  const avisar=e=>{console.error(e);const c=String(e&&e.code||'');
+    const t=c==='permission-denied'||c==='storage/unauthorized'?'Has entrado con '+(correo||'una cuenta')+' y esa cuenta no tiene permiso para guardar. Pulsa «Salir» arriba y entra con uno de los correos autorizados, o añade este correo en las reglas de Firestore (y de Storage) en la consola de Firebase.'
+      :c==='unauthenticated'?'Se ha cerrado la sesión. Recarga la página y vuelve a entrar.'
+      :'La nube ha rechazado el cambio'+(c?' (motivo: '+c+')':'')+'. Mándale una captura de este aviso a quien te monta la web.';
+    aviso(t);const s=document.getElementById('sync');if(s){s.textContent=c==='permission-denied'?'Esta cuenta no tiene permiso: revisa los correos en las reglas de Firestore':'No se pudo guardar en la nube';s.classList.remove('ok')}};
   const listo=(async()=>{
     const[{initializeApp},A,F]=await Promise.all([import(U+'firebase-app.js'),import(U+'firebase-auth.js'),import(U+'firebase-firestore.js')]);
     const fb=initializeApp(cfg);const auth=A.getAuth(fb);
@@ -80,7 +90,7 @@
     let fs;try{fs=F.initializeFirestore(fb,{ignoreUndefinedProperties:true,localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()})})}
     catch(e){fs=F.initializeFirestore(fb,{ignoreUndefinedProperties:true})}
     const user=await new Promise(ok=>{let pedido=false;A.onAuthStateChanged(auth,u=>{if(u){quitarLogin();ok(u)}else if(!pedido){pedido=true;pedirLogin(auth,A)}else location.reload()})});
-    botonSalir(auth,A,user);botonImportar(F,fs);
+    correo=user.email||'';botonSalir(auth,A,user);botonImportar(F,fs);
     F.setDoc(F.doc(fs,USUARIOS,user.uid),{nombre:(user.displayName||user.email||'').split('@')[0],email:user.email||''},{merge:true}).catch(()=>{});
     return{F,fs,user,fb};
   })();
@@ -159,8 +169,9 @@
           if(blob.size>20*1024*1024)throw Object.assign(new Error('grande'),{code:'too_large'});
           const tipo=(o&&o.type)||blob.type||'image/jpeg',ext=tipo==='application/pdf'?'pdf':'jpg';
           const r=S.ref(st,RAIZ+'fotos/'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'.'+ext);
+          // si Storage falla (sin activar, sin permiso…), la foto se guarda dentro de la base de datos
           try{await S.uploadBytes(r,blob,{contentType:tipo})}
-          catch(e){avisar(e);throw Object.assign(new Error(e.message),{code:e.code==='storage/quota-exceeded'?'quota_or_state':e.code})}
+          catch(e){console.error(e);if(e.code==='storage/quota-exceeded')throw Object.assign(new Error(e.message),{code:'quota_or_state'});return base.upload(blob,o)}
           return{id:await S.getDownloadURL(r)}},
         delete:async id=>{if(/^fs:/.test(id))return base.delete(id);await S.deleteObject(S.ref(st,id))}};
     }
