@@ -238,7 +238,9 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
       <div class="big"><span id="res-big">Dinero limpio</span><strong id="res-ben">–</strong></div>
       <div class="rows">
         <div class="row"><span>Ventas <small>(sin IVA)</small></span><b id="res-ing">–</b></div>
+        <div class="row"><span>Ventas <small>(con IVA)</small></span><b id="res-ing-t">–</b></div>
         <div class="row"><span><span id="res-gas-lbl">Gastos de facturas</span> <small>(sin IVA)</small></span><b id="res-gas">–</b></div>
+        <div class="row"><span><span id="res-gas-lbl-t">Gastos</span> <small>(con IVA)</small></span><b id="res-gas-t">–</b></div>
         <div class="row" id="res-ban-w"><span>Banco <small>(tributos, comisiones…)</small></span><b id="res-ban">–</b></div>
         <div class="row" id="res-per-w" hidden><span>Fuera de empresa <small>(gastos personales)</small></span><b id="res-per">–</b></div>
         <div class="row tot"><span>Margen sobre ventas</span><b id="res-mar">–</b></div>
@@ -630,7 +632,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     const v=V().filter(x=>enRango(x.fecha)),g=G().filter(x=>enRango(x.fecha));
     const bp=banco.filter(x=>enRango(x.fecha)),btReal=sum(bp,'importe'),bt=conBanco?btReal:0;
     $('r-banco').checked=conBanco;$('r-banco-w').classList.toggle('on',conBanco);$('res-ban-w').hidden=!conBanco;
-    $('res-big').textContent=conBanco?'Dinero limpio':'Beneficio';$('res-gas-lbl').textContent=conBanco?'Gastos de facturas':'Gastos';
+    $('res-big').textContent=conBanco?'Dinero limpio':'Beneficio';$('res-gas-lbl').textContent=$('res-gas-lbl-t').textContent=conBanco?'Gastos de facturas':'Gastos';
     $('r-banco-txt').textContent=conBanco?'Restando tributos y cargos del banco':(btReal?'Sin contar '+eur(btReal)+' del banco en este periodo':'Ahora se ve como antes, sin el banco');
     document.querySelectorAll('.lg-ban').forEach(x=>x.hidden=!conBanco);
     const pp=personal.filter(x=>enRango(x.fecha)),ptReal=sum(pp,'importe'),pt=conPers?ptReal:0;
@@ -639,7 +641,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     document.querySelectorAll('.lg-per').forEach(x=>x.hidden=!conPers);
     if(conPers)$('res-big').textContent='Te queda';
     const ing=sum(v,'base'),gas=sum(g,'base'),ben=r2(ing-gas-bt-pt);$('res-per').textContent=eur(pt);
-    $('res-ben').textContent=eur(ben);$('res-ing').textContent=eur(ing);$('res-gas').textContent=eur(gas);$('res-ban').textContent=eur(bt);
+    $('res-ben').textContent=eur(ben);$('res-ing').textContent=eur(ing);$('res-gas').textContent=eur(gas);$('res-ing-t').textContent=eur(sum(v,'total'));$('res-gas-t').textContent=eur(sum(g,'total'));$('res-ban').textContent=eur(bt);
     $('res-mar').textContent=ing?(ben/ing*100).toLocaleString('es-ES',{maximumFractionDigits:1})+' %':'–';
     const nd=new Set(v.map(x=>x.fecha)).size;$('res-dias').textContent=nd;$('res-efe').textContent=eur(sum(v,'efectivo'));$('res-tar').textContent=eur(sum(v,'tarjeta'));$('res-otr').textContent=eur(sum(v,'otros'));$('res-otr-w').hidden=!sum(v,'otros');$('res-media').textContent=nd?eur(sum(v,'total')/nd):'–';
     $('res-banco').hidden=!bp.length;
