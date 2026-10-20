@@ -192,6 +192,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 
   <section class="periodo" aria-label="Periodo">
     <div class="seg" id="seg-per">
+      <button data-p="dia" aria-pressed="false">Día</button>
       <button data-p="sem" aria-pressed="false">Semana</button>
       <button data-p="mes" aria-pressed="true">Mes</button>
       <button data-p="tri" aria-pressed="false">Trimestre</button>
@@ -587,6 +588,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   const masDias=(f,n)=>{const d=deIso(f);d.setDate(d.getDate()+n);return iso(d)};
   const diasEntre=(a,b)=>Math.round((deIso(b)-deIso(a))/864e5)+1;
   function rango(){const y=ref.getFullYear(),m=ref.getMonth();
+    if(per==='dia')return[iso(ref),iso(ref)];
     if(per==='sem'){const l=lunes(ref);const dm=new Date(l);dm.setDate(l.getDate()+6);return[iso(l),iso(dm)]}
     if(per==='pers'){let a=pDesde||hoy,b=pHasta||hoy;if(a>b)[a,b]=[b,a];return[a,b]}
     if(per==='mes')return[iso(new Date(y,m,1)),iso(new Date(y,m+1,0))];
@@ -595,23 +597,26 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   const enRango=f=>{const[a,b]=rango();return f>=a&&f<=b};
   const fLarga=f=>{const d=deIso(f);return d.getDate()+' '+MES[d.getMonth()].slice(0,3)};
   function etiqueta(){const y=ref.getFullYear(),m=ref.getMonth();
+    if(per==='dia'){const f=iso(ref);return cap(ref.toLocaleDateString('es-ES',{weekday:'long'}))+' '+fLarga(f)+(y!==new Date().getFullYear()?' '+y:'')+'<small>'+(f===hoy?'Hoy':f===masDias(hoy,-1)?'Ayer':y+'')+'</small>'}
     if(per==='sem'||per==='pers'){const[a,b]=rango();const n=diasEntre(a,b);
       return (per==='sem'?'Semana del ':'Del ')+fLarga(a)+' al '+fLarga(b)+(a.slice(0,4)!==b.slice(0,4)||per==='pers'?' '+b.slice(0,4):'')+'<small>'+n+' día'+(n>1?'s':'')+' · '+cap(deIso(a).toLocaleDateString('es-ES',{weekday:'long'}))+' a '+deIso(b).toLocaleDateString('es-ES',{weekday:'long'})+'</small>'}
     if(per==='mes')return cap(MES[m])+' '+y;
     if(per==='tri'){const q=Math.floor(m/3);return (q+1)+'.º trimestre '+y+'<small>'+cap(MES[q*3])+' – '+MES[q*3+2]+'</small>'}
     return 'Año '+y}
-  function plazo(){if(per==='sem'||per==='pers')return '';if(per==='ano')return 'Resumen anual (modelo 390): del 1 al 30 de enero';
+  function plazo(){if(per==='dia'||per==='sem'||per==='pers')return '';if(per==='ano')return 'Resumen anual (modelo 390): del 1 al 30 de enero';
     const q=Math.floor(ref.getMonth()/3);const y=ref.getFullYear();
     const p=['del 1 al 20 de abril','del 1 al 20 de julio','del 1 al 20 de octubre','del 1 al 30 de enero de '+(y+1)][q];
     return 'IVA y IRPF de este trimestre (303 y 130): se presentan '+p}
   function mover(d){const y=ref.getFullYear(),m=ref.getMonth();
     if(per==='pers'){const[a,b]=rango();const n=diasEntre(a,b);pDesde=masDias(a,d*n);pHasta=masDias(b,d*n);$('p-desde').value=pDesde;$('p-hasta').value=pHasta;render();return}
+    if(per==='dia'){ref=new Date(y,m,ref.getDate()+d);render();return}
     if(per==='sem'){ref=new Date(y,m,ref.getDate()+7*d);render();return}
     if(per==='mes')ref=new Date(y,m+d,1);else if(per==='tri')ref=new Date(y,m+3*d,1);else ref=new Date(y+d,0,1);render()}
   $('prev').onclick=()=>mover(-1);$('next').onclick=()=>mover(1);
   function setPer(p){
     if(p==='pers'&&!pDesde){const[a,b]=rango();pDesde=a;pHasta=b>hoy&&a<=hoy?hoy:b}
     if(p!=='pers'&&per==='pers'&&pDesde)ref=deIso(pDesde);
+    if(p==='dia'){const[a,b]=rango();ref=deIso(hoy>=a&&hoy<=b?hoy:a)} // al pasar a Día: hoy si cae en el periodo que se veía
     per=p;$('seg-per').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.p===p));
     $('pers').hidden=$('atajos').hidden=p!=='pers';$('p-desde').value=pDesde;$('p-hasta').value=pHasta;render()}
   $('seg-per').querySelectorAll('button').forEach(b=>b.onclick=()=>setPer(b.dataset.p));
@@ -1013,7 +1018,7 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
       toast('Quitado del archivo');
     }catch(e){toast('No se pudo quitar. Inténtalo de nuevo.')}
   }
-  function codPeriodo(){const[a,b]=rango();if(per==='sem'||per==='pers')return a+'_a_'+b;return per==='mes'?a.slice(0,7):per==='tri'?a.slice(0,4)+'-T'+(Math.floor((+a.slice(5,7)-1)/3)+1):a.slice(0,4)}
+  function codPeriodo(){const[a,b]=rango();if(per==='dia')return a;if(per==='sem'||per==='pers')return a+'_a_'+b;return per==='mes'?a.slice(0,7):per==='tri'?a.slice(0,4)+'-T'+(Math.floor((+a.slice(5,7)-1)/3)+1):a.slice(0,4)}
   function cargarZip(){return window.JSZip?Promise.resolve(window.JSZip):new Promise((ok,ko)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';sc.onload=()=>window.JSZip?ok(window.JSZip):ko(new Error('zip'));sc.onerror=ko;document.head.appendChild(sc)})}
   $('a-zip').onclick=async()=>{
     const ls=itemsArchivo().filter(x=>x.carpeta===carpetaVista);if(!ls.length||!downloads)return;
