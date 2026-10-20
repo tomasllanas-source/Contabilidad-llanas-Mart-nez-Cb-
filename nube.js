@@ -94,7 +94,17 @@
     F.setDoc(F.doc(fs,USUARIOS,user.uid),{nombre:(user.displayName||user.email||'').split('@')[0],email:user.email||''},{merge:true}).catch(()=>{});
     return{F,fs,user,fb};
   })();
-  listo.catch(e=>{fallo=e;console.error(e)});
+  // si Firebase no carga (sin cobertura, navegador de WhatsApp o Instagram, modo privado…) no se queda en «Conectando…» sin más
+  function sinConexion(){cuandoListo(()=>{if(document.getElementById('nb-velo'))return;estilos();
+    const v=document.createElement('div');v.className='nb-velo';v.id='nb-velo';
+    v.innerHTML=`<div class="nb-caja"><h2>No se puede conectar</h2><p>La página no ha podido cargar el inicio de sesión. Comprueba que tienes internet y vuelve a probar.</p>
+      <p>Si la has abierto desde WhatsApp, toca los tres puntos o el icono de compartir y elige <b>Abrir en Safari</b> (o en Chrome). Tampoco funciona en modo privado.</p>
+      <button type="button" id="nb-otra">Volver a probar</button></div>`;
+    document.body.appendChild(v);document.getElementById('nb-otra').onclick=()=>location.reload();
+    const s=document.getElementById('sync');if(s)s.textContent='Sin conexión con la nube'})}
+  let conectado=false;listo.then(()=>{conectado=true},()=>{});
+  setTimeout(()=>{if(!conectado&&!document.getElementById('nb-velo'))sinConexion()},15000);
+  listo.catch(e=>{fallo=e;console.error(e);sinConexion()});
 
   // ---------- base de datos con la misma forma que usan las páginas ----------
   const snap=d=>({id:d.id,exists:d.exists(),data:()=>d.data()});
