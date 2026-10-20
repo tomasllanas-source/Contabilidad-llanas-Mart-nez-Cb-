@@ -212,14 +212,14 @@ input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   <section class="panel" id="p-e" hidden>
     <label>Producto<input id="e-nombre" type="text" value="Hamburguesa casera"></label>
 
-    <label class="lote">Kilos de carne a preparar<input id="e-kg" type="number" step="0.5" min="0" value="20"><span class="hint">Cambia este número y todas las cantidades se recalculan</span></label>
     <datalist id="dl-ing"></datalist>
 
-    <p class="sec">Ingredientes por kilo de carne <span id="e-ingtot">0,00 €</span></p>
+    <p class="sec">Ingredientes del lote <span id="e-ingtot">0,00 €</span></p>
     <div class="rowlist" id="ings"></div>
     <div class="btns"><button class="btn" id="pick-ing-btn" type="button" aria-expanded="false">☰ Elegir de mi lista</button><button class="btn" id="add-ing" type="button">+ Añadir ingrediente</button></div>
     <div class="pick" id="pick-ing" hidden></div>
-    <p class="hint" style="margin:-6px 0 0;font-size:12px;color:var(--muted)">La carne también va aquí como ingrediente: si es toda magro, pon 1000 g (o 1 kg); si es mezcla, por ejemplo 700 g de magro y 300 g de panceta. El resto, la cantidad para 1 kg de carne (60 g de especia, 2 huevos…). La app la multiplica por los kilos del lote. Pulsa «Elegir de mi lista» y toca los ingredientes que ya tienes guardados: se añaden con su precio. La tripa y los envases no suman peso a la masa.</p>
+    <div class="fres" id="e-suma"></div>
+    <p class="hint" style="margin:-6px 0 0;font-size:12px;color:var(--muted)">Pon la cantidad total que echas de cada cosa en el lote, carne incluida (por ejemplo 14 kg de magro, 6 kg de panceta, 1200 g de especia, 40 huevos). La app suma el peso de todo y saca el coste por kilo. Pulsa «Elegir de mi lista» y toca los ingredientes que ya tienes guardados: se añaden con su precio. La tripa y los envases no suman peso a la masa.</p>
 
     <p class="sec">Trabajo de todo el lote <span id="e-horastot">0 h 00 min</span></p>
     <div class="rowlist" id="tareas"></div>
@@ -356,19 +356,13 @@ function kgPorUnidad(i){
 }
 const PRECIO_UN={g:'kg',kg:'kg',ml:'l',ud:'ud',m:'m'};
 function expandir(d){
-  if(d.carnes||d.adds){
-    const K=+d.kgLote||0, out=[];
-    (d.carnes||[]).forEach(c=>{const kg=K*(+c.pct||0)/100;out.push({nombre:c.nombre,cant:kg,unidad:'kg',coste:kg*(+c.precio||0),kg,carne:true});});
-    (d.adds||[]).forEach(a=>{const q=(+a.porKg||0)*K,p=+a.precio||0;let cant,un,kg;
-      if(a.unidad==='g'){cant=q/1000;un='kg';kg=cant;}
-      else if(a.unidad==='kg'){cant=q;un='kg';kg=q;}
-      else if(a.unidad==='ml'){cant=q/1000;un='l';kg=cant*((a.g!=null&&a.g!==''?+a.g:1000)/1000);}
-      else if(a.unidad==='ud'){cant=q;un='ud';kg=q*(+a.g||0)/1000;}
-      else{cant=q;un='m';kg=0;}
-      out.push({nombre:a.nombre,cant,unidad:un,coste:cant*p,kg});});
-    return out;
-  }
-  return (d.ings||[]).map(i=>{const c=+i.cant||0;return {nombre:i.nombre,cant:c,unidad:i.unidad||'kg',coste:c*(+i.precio||0),kg:c*kgPorUnidad(i)};});
+  return (d.lote||[]).map(a=>{const q=+a.cant||0,p=+a.precio||0;let cant,un,kg;
+    if(a.unidad==='g'){cant=q/1000;un='kg';kg=cant;}
+    else if(a.unidad==='kg'){cant=q;un='kg';kg=q;}
+    else if(a.unidad==='ml'){cant=q/1000;un='l';kg=cant*((a.g!=null&&a.g!==''?+a.g:1000)/1000);}
+    else if(a.unidad==='ud'){cant=q;un='ud';kg=q*(+a.g||0)/1000;}
+    else{cant=q;un='m';kg=0;}
+    return {nombre:a.nombre,cant,unidad:un,coste:cant*p,kg};});
 }
 function calcular(d){
   const out={nota:''};
@@ -379,7 +373,6 @@ function calcular(d){
   }else{
     const lista=expandir(d);out.lista=lista;
     let kgBruto=0,mp=0;lista.forEach(x=>{mp+=x.coste;kgBruto+=x.kg;});
-    if(d.carnes){const pct=d.carnes.reduce((s,c)=>s+(+c.pct||0),0);if(d.carnes.length&&Math.abs(pct-100)>0.5)out.nota='Los porcentajes de carne suman '+Math.round(pct*10)/10+' %. Deberían sumar 100 %.';}
     const merma=Math.min((d.merma||0)/100,0.95);
     const min=(d.tareas||[]).reduce((s,t)=>s+(+t.min||0),0);
     const mo=min/60*(d.costeHora||0);
@@ -387,7 +380,7 @@ function calcular(d){
     const peso=kgBruto*(1-merma);
     out.prod={mp,mo,otros,total:mp+mo+otros,min,peso,kgBruto};
     costeKg=peso>0?(mp+mo+otros)/peso:NaN;
-    if(!(peso>0)) out.nota='Pon los kilos de carne a preparar para calcular el lote.';
+    if(!(peso>0)) out.nota='Añade los ingredientes con su cantidad para calcular el lote.';
   }
   out.costeKg=costeKg;
   const m=Math.min((d.margen||0)/100,0.95), iva=(d.iva||0)/100;
@@ -462,12 +455,12 @@ function calcular(d){
   function addIng(i={}){
     const r=++rid, d=document.createElement('div');d.className='ing';
     d.innerHTML=`<input class="n" id="ig-n-${r}" type="text" list="dl-ing" aria-label="Ingrediente" placeholder="Ingrediente">
-      <input class="c" id="ig-c-${r}" type="number" step="any" min="0" aria-label="Cantidad por kilo de carne" placeholder="por kg">
+      <input class="c" id="ig-c-${r}" type="number" step="any" min="0" aria-label="Cantidad total del lote" placeholder="cantidad">
       <select class="u" id="ig-u-${r}" aria-label="Unidad"><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="ud">ud</option><option value="m">m</option></select>
       <input class="p" id="ig-p-${r}" type="number" step="0.01" min="0" aria-label="Precio de compra" placeholder="€/kg">
       <button type="button" class="del" aria-label="Quitar ingrediente">×</button>
       <div class="sub"><label class="gw" hidden><span class="gl">Peso por ud</span><input class="g" id="ig-g-${r}" type="number" step="1" min="0" aria-label="Gramos por unidad"> g</label><span class="tot"></span></div>`;
-    d.querySelector('.n').value=i.nombre||'';d.querySelector('.c').value=i.porKg??'';d.querySelector('.u').value=i.unidad||'g';d.querySelector('.p').value=i.precio??'';d.querySelector('.g').value=i.g??'';
+    d.querySelector('.n').value=i.nombre||'';d.querySelector('.c').value=i.cant??'';d.querySelector('.u').value=i.unidad||'g';d.querySelector('.p').value=i.precio??'';d.querySelector('.g').value=i.g??'';
     const setPh=()=>{const u=d.querySelector('.u').value;d.querySelector('.p').placeholder='€/'+PRECIO_UN[u];
       d.querySelector('.gw').hidden=!(u==='ud'||u==='ml');d.querySelector('.gl').textContent=u==='ml'?'Peso por litro':'Peso por ud';
       if(u==='ml'&&d.querySelector('.g').value==='')d.querySelector('.g').value=1000;};setPh();
@@ -522,7 +515,6 @@ function calcular(d){
   }
   $('pick-ing-btn').onclick=()=>abrirPick('ing');
 
-  $('e-kg').addEventListener('input',calc);
   $('add-task').onclick=()=>{addTask();calc()};
 
   function datos(){
@@ -530,31 +522,28 @@ function calcular(d){
       venta:{tipo:venta,gramos:num('v-gramos'),envase:num('v-envase')}};
     if(base.tipo==='c') return {...base,nombre:$('c-nombre').value.trim()||'Sin nombre',compra:num('c-compra'),merma:num('c-merma'),otros:num('c-otros')};
     return {...base,nombre:$('e-nombre').value.trim()||'Sin nombre',merma:num('e-merma'),otros:num('e-otros'),costeHora:num('e-coste-h'),
-      kgLote:num('e-kg'),
-      adds:[...document.querySelectorAll('#ings .ing')].map(r=>{const u=r.querySelector('.u').value;return {nombre:r.querySelector('.n').value.trim(),porKg:parseFloat(r.querySelector('.c').value)||0,unidad:u,precio:parseFloat(r.querySelector('.p').value)||0,g:(u==='ud'||u==='ml')?(parseFloat(r.querySelector('.g').value)||0):null};}).filter(i=>i.nombre||i.porKg),
+      lote:[...document.querySelectorAll('#ings .ing')].map(r=>{const u=r.querySelector('.u').value;return {nombre:r.querySelector('.n').value.trim(),cant:parseFloat(r.querySelector('.c').value)||0,unidad:u,precio:parseFloat(r.querySelector('.p').value)||0,g:(u==='ud'||u==='ml')?(parseFloat(r.querySelector('.g').value)||0):null};}).filter(i=>i.nombre||i.cant),
       tareas:[...document.querySelectorAll('#tareas .task')].map(r=>({nombre:r.querySelector('.tn').value.trim(),min:parseFloat(r.querySelector('.tm').value)||0})).filter(t=>t.nombre||t.min)};
   }
 
-  // recetas guardadas antes con cantidades totales: pasarlas a "por kilo de carne"
-  function convertir(d){
-    const ings=d.ings||[], kgs=ings.filter(i=>(i.unidad||'kg')==='kg'), tot=kgs.reduce((s,i)=>s+(+i.cant||0),0);
-    const carnes=kgs.filter(i=>(+i.cant||0)>=tot*0.1), K=carnes.reduce((s,i)=>s+(+i.cant||0),0)||1;
-    const r=x=>Math.round(x*100)/100;
-    return {...d,kgLote:r(K),ings:undefined,
-      carnes:carnes.map(i=>({nombre:i.nombre,pct:r((+i.cant||0)/K*100),precio:i.precio})),
-      adds:ings.filter(i=>!carnes.includes(i)).map(i=>{const u=i.unidad||'kg',c=+i.cant||0;
-        return u==='kg'?{nombre:i.nombre,porKg:r(c*1000/K),unidad:'g',precio:i.precio}:u==='l'?{nombre:i.nombre,porKg:r(c*1000/K),unidad:'ml',precio:i.precio,g:i.g}:{nombre:i.nombre,porKg:r(c/K),unidad:u,precio:i.precio,g:i.g};})};
+  // recetas guardadas "por kilo de carne" (o con el formato más antiguo): pasarlas a cantidades totales del lote
+  function aLote(d){
+    if(d.lote) return d;
+    const r=x=>Math.round(x*1000)/1000;let lote;
+    if(d.carnes||d.adds){const K=+d.kgLote||0;
+      lote=[...(d.carnes||[]).filter(c=>c.nombre||c.pct).map(c=>({nombre:c.nombre,cant:r(K*(+c.pct||0)/100),unidad:'kg',precio:c.precio})),
+        ...(d.adds||[]).map(a=>({nombre:a.nombre,cant:r((+a.porKg||0)*K),unidad:a.unidad,precio:a.precio,g:a.g??null}))];}
+    else lote=(d.ings||[]).map(i=>{const u=i.unidad||'kg',c=+i.cant||0;
+      return u==='l'?{nombre:i.nombre,cant:r(c*1000),unidad:'ml',precio:i.precio,g:i.g??null}:{nombre:i.nombre,cant:c,unidad:u,precio:i.precio,g:i.g??null};});
+    const o={...d,lote};delete o.carnes;delete o.adds;delete o.ings;delete o.kgLote;return o;
   }
   function cargar(d){
     if(d.tipo==='c'){$('c-nombre').value=d.nombre;$('c-compra').value=d.compra;$('c-merma').value=d.merma;$('c-otros').value=d.otros;}
     else{
       $('e-nombre').value=d.nombre;$('e-merma').value=d.merma;$('e-otros').value=d.otros;$('e-coste-h').value=d.costeHora;
-      if(!d.carnes&&d.ings) d=convertir(d);
-      $('e-kg').value=d.kgLote;
+      d=aLote(d);
       $('ings').innerHTML='';let act=0;
-      // la carne ahora va como ingrediente más (gramos por kilo de carne)
-      d.adds=[...(d.carnes||[]).filter(c=>c.nombre||c.pct).map(c=>({nombre:c.nombre,porKg:Math.round((+c.pct||0)*10*100)/100,unidad:'g',precio:c.precio})),...(d.adds||[])];delete d.carnes;
-      (d.adds||[]).forEach(i=>{const c=buscarCat(i.nombre);if(c&&PRECIO_UN[i.unidad]===c.unidad){if(c.precio!==i.precio){i={...i,precio:c.precio};act++;}if(c.g!=null&&i.g==null)i={...i,g:c.g};}addIng(i);});
+      d.lote.forEach(i=>{const c=buscarCat(i.nombre);if(c&&PRECIO_UN[i.unidad]===c.unidad){if(c.precio!==i.precio){i={...i,precio:c.precio};act++;}if(c.g!=null&&i.g==null)i={...i,g:c.g};}addIng(i);});
       $('tareas').innerHTML='';(d.tareas||[]).forEach(addTask);
       if(act) setTimeout(()=>toast(act+' precio'+(act>1?'s actualizados':' actualizado')+' desde tu lista de ingredientes'),50);
     }
@@ -581,13 +570,14 @@ function calcular(d){
         p.peso>0?`Mano de obra: ${eur(p.mo/p.peso)}/kg`:null,
         r.unidadesLote!=null?`Salen ${r.unidadesLote} ${venta==='pieza'?'piezas':'bandejas'}`:null].filter(Boolean);
       $('pr-chips').innerHTML=chips.map(c=>`<span class="chip">${c}</span>`).join('');
-      const K=d.kgLote||0, L=r.lista||[], nC=(d.carnes||[]).length;
+      const L=r.lista||[], mpTot=L.reduce((s,x)=>s+x.coste,0);
       const fmtCant=x=>x.unidad==='kg'?(x.cant<1?nf(x.cant*1000,0)+' g':nf(x.cant,2)+' kg'):x.unidad==='l'?(x.cant<1?nf(x.cant*1000,0)+' ml':nf(x.cant,2)+' l'):x.unidad==='ud'?nf(x.cant,1)+' ud':nf(x.cant,1)+' m';
-      $('e-ingtot').textContent=eur(L.slice(nC).reduce((s,x)=>s+x.coste,0)/(K||1))+' por kg';
+      $('e-ingtot').textContent=eur(mpTot);
+      $('e-suma').innerHTML=row('Peso total de la masa',nf(p.kgBruto)+' kg')+row('Coste de los ingredientes',eur(mpTot))+row('Ingredientes por kilo',p.kgBruto>0?eur(mpTot/p.kgBruto)+'/kg':'–');
       $('e-horastot').textContent=hm(p.min);
-      document.querySelectorAll('#ings .ing').forEach((el,i)=>{const x=L[nC+i];if(!x){el.querySelector('.tot').textContent='';return;}
-        el.querySelector('.tot').textContent=x.cant?'Lote: '+fmtCant(x)+' · '+eur(x.coste)+(x.kg>0?'':' · no suma peso'):'';});
-      $('pr-h').textContent='Hoja de producción · '+nf(K,2)+' kg de carne';
+      document.querySelectorAll('#ings .ing').forEach((el,i)=>{const x=L[i];if(!x){el.querySelector('.tot').textContent='';return;}
+        el.querySelector('.tot').textContent=x.cant?eur(x.coste)+(x.kg>0&&p.kgBruto>0?' · '+nf(x.kg/p.kgBruto*100,1)+' % de la masa':'')+(x.kg>0?'':' · no suma peso'):'';});
+      $('pr-h').textContent='Hoja de producción · '+nf(p.kgBruto,2)+' kg de masa';
       $('pr-hoja').innerHTML=L.filter(x=>x.nombre&&x.cant).map(x=>`<div><span>${esc(x.nombre)}</span><b>${fmtCant(x)}</b></div>`).join('')||'<div><span>Añade carne e ingredientes</span><b></b></div>';
     }
     // ticket
@@ -730,11 +720,9 @@ td{padding:7pt 0;border-bottom:1px dotted #aaa}td:nth-child(2),td:nth-child(3),t
   function impactoRecetas(nuevos){ // nuevos: Map nombreNormalizado -> precio
     const out=[];
     productos.filter(p=>p.tipo==='e'&&p.datos).forEach(p=>{
-      let d=JSON.parse(JSON.stringify(p.datos));if(!d.carnes&&d.ings)d=convertir(d);
-      const items=[...(d.carnes||[]),...(d.adds||[])];
-      if(!items.some(i=>nuevos.has(norm(i.nombre))))return;
-      (d.carnes||[]).forEach(c=>{const n=norm(c.nombre);if(nuevos.has(n))c.precio=nuevos.get(n);else{const k=buscarCat(c.nombre);if(k&&k.unidad==='kg')c.precio=k.precio;}});
-      (d.adds||[]).forEach(a=>{const n=norm(a.nombre);if(nuevos.has(n))a.precio=nuevos.get(n);else{const k=buscarCat(a.nombre);if(k&&PRECIO_UN[a.unidad]===k.unidad)a.precio=k.precio;}});
+      const d=aLote(JSON.parse(JSON.stringify(p.datos)));
+      if(!d.lote.some(i=>nuevos.has(norm(i.nombre))))return;
+      d.lote.forEach(a=>{const n=norm(a.nombre);if(nuevos.has(n))a.precio=nuevos.get(n);else{const k=buscarCat(a.nombre);if(k&&PRECIO_UN[a.unidad]===k.unidad)a.precio=k.precio;}});
       const r=calcular(d), iva=(d.iva??10)/100, sin=p.pvpKg/(1+iva);
       if(!isFinite(r.costeKg))return;
       out.push({p,d,antes:p.costeKg,ahora:r.costeKg,mAntes:sin>0?(sin-p.costeKg)/sin*100:NaN,mAhora:sin>0?(sin-r.costeKg)/sin*100:NaN});
@@ -939,7 +927,7 @@ Reglas:
   };
 
   // ---------- arranque ----------
-  [{nombre:'Carne picada mixta',porKg:1000,unidad:'g',precio:7.8},{nombre:'Huevo',porKg:2,unidad:'ud',precio:0.25,g:50},{nombre:'Especias para hamburguesa',porKg:60,unidad:'g',precio:20},{nombre:'Ajo',porKg:50,unidad:'g',precio:4},{nombre:'Pan rallado',porKg:40,unidad:'g',precio:2.5}].forEach(addIng);
+  [{nombre:'Carne picada mixta',cant:20,unidad:'kg',precio:7.8},{nombre:'Huevo',cant:40,unidad:'ud',precio:0.25,g:50},{nombre:'Especias para hamburguesa',cant:1200,unidad:'g',precio:20},{nombre:'Ajo',cant:1000,unidad:'g',precio:4},{nombre:'Pan rallado',cant:800,unidad:'g',precio:2.5}].forEach(addIng);
   [{nombre:'Picar y mezclar',min:40},{nombre:'Formar hamburguesas',min:120},{nombre:'Envasar y etiquetar',min:60}].forEach(addTask);
   calc();
 
