@@ -751,7 +751,10 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   $('c-guardar').onclick=async()=>{const v=calcCaja();if(!v.fecha){toast('Pon la fecha de la caja.');return}if(!v.total){toast('Apunta al menos un importe cobrado.');return}
     if(v.desglose&&v.desglose[0].total<0){toast('Lo vendido a otros tipos de IVA pasa del total cobrado. Revísalo.');return}
     v.nota=$('c-nota').value.trim();$('c-guardar').disabled=true;
-    try{await guardar('ventas',v);toast((v.caja>1?'Caja '+v.caja+' del ':'Caja del ')+fechaCorta(v.fecha)+' guardada');}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
+    try{await guardar('ventas',v);const otroAno=v.fecha.slice(0,4)!==hoy.slice(0,4);
+      // si la caja cae fuera del periodo que se ve, se salta a él para que se vea en la lista
+      if(!enRango(v.fecha)&&per!=='pers'){ref=deIso(v.fecha);render()}
+      toast((v.caja>1?'Caja '+v.caja+' del ':'Caja del ')+fechaCorta(v.fecha)+(otroAno?' de '+v.fecha.slice(0,4):'')+' guardada');}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
     $('c-guardar').disabled=false};
   // foto del cierre de caja: la IA lee el ticket y rellena el formulario (la foto no se guarda)
   $('c-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file||!sample)return;
@@ -763,7 +766,9 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezca (si el ticket da la base y la cuota, suma las dos). Si no ves un dato, pon null.`;
       const d=await sample.json(prompt,{images:[img],modelTier:'default'});
       if(!d||typeof d!=='object')throw new Error('vacío');
-      if(d.fecha&&/^\d{4}-\d{2}-\d{2}$/.test(d.fecha)&&d.fecha!==$('c-fecha').value){$('c-fecha').value=d.fecha;cargarCaja()}
+      // la fecha del ticket solo se usa si es de los últimos 45 días (la IA a veces lee mal el año o el reloj de la caja va mal)
+      let fechaRara='';
+      if(d.fecha&&/^\d{4}-\d{2}-\d{2}$/.test(d.fecha)&&d.fecha!==$('c-fecha').value){if(d.fecha<=hoy&&d.fecha>=masDias(hoy,-45)){$('c-fecha').value=d.fecha;cargarCaja()}else fechaRara=d.fecha}
       const num=x=>x!=null&&isFinite(+x)?r2(+x):null;
       let efe=num(d.efectivo),tar=num(d.tarjeta),otr=num(d.otros)||0;const tot=num(d.total);
       // si solo vienen el total y la tarjeta, lo que falta es efectivo
@@ -776,7 +781,7 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
       else if(pi.length>1){const pr=pi.reduce((a,b)=>b.a>a.a?b:a);$('c-pct').value=pr.t;$('c-mix').checked=true;pi.filter(x=>x.t!==pr.t).forEach(x=>$('c-m'+x.t).value=fmtIn(x.a))}
       $('c-mix-w').hidden=!$('c-mix').checked;calcCaja();
       const suma=r2((efe||0)+(tar||0)+otr);
-      st.textContent='Listo. Revisa los datos antes de guardar'+(tot&&Math.abs(suma-tot)>0.05?' (ojo: efectivo + tarjeta + otros da '+eur(suma)+' y el ticket dice '+eur(tot)+').':pi.length>1?' (lleva varios tipos de IVA; he puesto lo de cada uno).':'.');
+      st.textContent=(fechaRara?'El ticket parece del '+fechaRara.split('-').reverse().join('/')+'; he dejado la fecha que había, cámbiala si hace falta. ':'')+'Listo. Revisa los datos antes de guardar'+(tot&&Math.abs(suma-tot)>0.05?' (ojo: efectivo + tarjeta + otros da '+eur(suma)+' y el ticket dice '+eur(tot)+').':pi.length>1?' (lleva varios tipos de IVA; he puesto lo de cada uno).':'.');
     }catch(err){st.className='fstat err';st.textContent=msgLectura(err)}
   });
   function renderCaja(){const v=V().filter(x=>enRango(x.fecha)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
