@@ -647,10 +647,17 @@ function calcular(d){
   function renderLista(){
     // sin acentos ni mayúsculas: «anojo» encuentra «Aguja de añojo»
     const sinAc=x=>(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    // por palabras y sin «de», «en», «la»…: «manteca en rama» encuentra «Manteca rama»
     const q=sinAc($('buscar').value);
-    const list=productos.filter(p=>(filtro==='todos'||p.tipo===filtro)&&(!q||sinAc(p.nombre).includes(q))).sort((a,b)=>a.tipo.localeCompare(b.tipo)||a.nombre.localeCompare(b.nombre,'es'));
+    const pal=q.split(/[^a-z0-9ñ]+/).filter(w=>w&&!['de','del','la','las','el','los','en','y','con','a','al','para','sin'].includes(w));
+    const vale=n=>{const t=sinAc(n);return !q||(pal.length?pal.every(w=>t.includes(w)):t.includes(q));};
+    const list=productos.filter(p=>(filtro==='todos'||p.tipo===filtro)&&vale(p.nombre)).sort((a,b)=>a.tipo.localeCompare(b.tipo)||a.nombre.localeCompare(b.nombre,'es'));
     const box=$('items');box.innerHTML='';$('export').hidden=!productos.length;
-    if(!list.length&&q){box.innerHTML='<div class="empty">No hay ningún producto que se llame así.</div>';return}
+    // si lo buscado está en la lista de ingredientes (p. ej. guardado desde una factura), avisarlo
+    const ings=q?catalogo.filter(c=>vale(c.nombre)).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')):[];
+    const pintarIngs=()=>{if(!ings.length)return;const d=document.createElement('div');d.className='empty';d.style.marginTop=list.length?'10px':'0';
+      d.innerHTML='<b>En tu lista de ingredientes:</b><br>'+ings.map(c=>`${esc(c.nombre)} · ${eur(c.precio)}/${UN[c.unidad]||c.unidad}`).join('<br>')+'<br><small>Su precio se cambia en la pestaña Ingredientes.</small>';box.appendChild(d);};
+    if(!list.length&&q){if(ings.length)pintarIngs();else box.innerHTML='<div class="empty">No hay ningún producto que se llame así.</div>';return}
     if(!list.length){box.innerHTML='<div class="empty">Todavía no hay productos aquí. Calcula un precio arriba y pulsa «Guardar en mis productos».</div>';return}
     list.forEach(p=>{
       const d=document.createElement('div');d.className='item';
@@ -665,6 +672,7 @@ function calcular(d){
       d.querySelector('.qb').onclick=async()=>{try{await borrarDoc('productos',p.id);toast('Quitado: '+p.nombre)}catch(e){toast('No se pudo quitar. Inténtalo de nuevo.')}};
       box.appendChild(d);
     });
+    pintarIngs();
   }
   $('buscar').addEventListener('input',renderLista);
   document.querySelectorAll('#filtro button').forEach(b=>b.onclick=()=>{filtro=b.dataset.f;document.querySelectorAll('#filtro button').forEach(o=>o.setAttribute('aria-pressed',o===b));renderLista()});
@@ -973,7 +981,7 @@ Reglas:
     db=d;$('sync').textContent='Sincronizado en todos tus dispositivos';$('sync').classList.add('ok');
     const err=()=>{$('sync').textContent='Sin conexión: los cambios no se guardan';$('sync').classList.remove('ok');};
     db.collection('productos').onSnapshot(s=>{productos=s.docs.map(x=>({...x.data(),id:x.id}));renderLista();renderCatalogo();},err);
-    db.collection('ingredientes').onSnapshot(s=>{catalogo=s.docs.map(x=>({...x.data(),id:x.id}));renderCatalogo();},err);
+    db.collection('ingredientes').onSnapshot(s=>{catalogo=s.docs.map(x=>({...x.data(),id:x.id}));renderCatalogo();renderLista();},err);
     try{usr=await window.claude.use('user');uid=usr?await usr.id():null;}catch(e){usr=null;uid=null;}
     if(uid){try{const e=await db.collection('data/users/'+uid).doc('estado').get();if(e.exists)visto=Math.max(visto,+(e.data().visto)||0);}catch(e){}}
     db.collection('cambios').orderBy('fecha','desc').limit(100).onSnapshot(s=>{cambios=s.docs.map(x=>({...x.data(),id:x.id}));pintarAvisos();},err);
