@@ -226,7 +226,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     <button class="tab" role="tab" id="tab-r" aria-selected="true">Resumen<small>Cómo va</small></button>
     <button class="tab t-caja" role="tab" id="tab-c" aria-selected="false">Caja<small>Ventas del día</small></button>
     <button class="tab t-gas" role="tab" id="tab-g" aria-selected="false">Gastos<small>Facturas y pagos</small></button>
-    <button class="tab t-ban" role="tab" id="tab-b" aria-selected="false">Banco<small>Tributos y cargos</small></button>
+    <button class="tab t-ban" role="tab" id="tab-b" aria-selected="false">Banco<small>Tributos, sueldos y cargos</small></button>
     <button class="tab t-per" role="tab" id="tab-p" aria-selected="false">Personal<small>Fuera de empresa</small></button>
     <button class="tab t-arc" role="tab" id="tab-a" aria-selected="false">Archivo<small>Para el asesor</small></button>
   </div>
@@ -427,7 +427,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   <div class="vista" id="v-b" hidden>
     <section class="panel">
       <h2 id="b-tit">Nuevo cargo del banco</h2>
-      <p class="note" style="font-size:14px">Lo que te cobran en la cuenta y no es una factura: tributos que presentas, comisiones, seguros, préstamos…</p>
+      <p class="note" style="font-size:14px">Lo que te cobran en la cuenta y no es una factura: tributos que presentas, sueldos, comisiones, seguros, préstamos…</p>
       <div class="chips" id="b-chips"></div>
       <div class="grid2">
         <label>Fecha del cargo<input id="b-fecha" type="date"></label>
@@ -908,8 +908,8 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
   function msgLectura(err){return err&&err.code==='no_credit'?'Se ha acabado el saldo para leer facturas. Recárgalo en aistudio.google.com (Facturación); mientras, rellena los datos a mano.':err&&err.code==='daily_quota'?'Se han acabado las lecturas gratis de hoy. Mañana vuelven; mientras, rellena los datos a mano (la foto se guarda igual).':err&&err.code==='rate_limited'?'Demasiadas lecturas seguidas. Espera un minuto y vuelve a probar.':'No he podido leer esta foto. Prueba con otra más nítida o rellena los datos a mano.'}
 
   // ---------- banco ----------
-  const TIPOS_B=['Tributos e impuestos','Seguridad Social','Comisiones del banco','Comisión TPV (tarjetas)','Préstamo o leasing','Seguros','Recibos domiciliados','Otros'];
-  const ATAJOS_B=[['Modelo 303 (IVA)','Tributos e impuestos'],['Modelo 130 (IRPF)','Tributos e impuestos'],['Modelo 111 (retenciones)','Tributos e impuestos'],['Modelo 115 (alquiler)','Tributos e impuestos'],['Cuota de autónomo','Seguridad Social'],['Seguros sociales (TC)','Seguridad Social'],['Comisión de mantenimiento','Comisiones del banco'],['Comisión TPV','Comisión TPV (tarjetas)'],['Cuota del préstamo','Préstamo o leasing']];
+  const TIPOS_B=['Tributos e impuestos','Seguridad Social','Sueldos y nóminas','Comisiones del banco','Comisión TPV (tarjetas)','Préstamo o leasing','Seguros','Recibos domiciliados','Otros'];
+  const ATAJOS_B=[['Modelo 303 (IVA)','Tributos e impuestos'],['Modelo 130 (IRPF)','Tributos e impuestos'],['Modelo 111 (retenciones)','Tributos e impuestos'],['Modelo 115 (alquiler)','Tributos e impuestos'],['Cuota de autónomo','Seguridad Social'],['Seguros sociales (TC)','Seguridad Social'],['Nómina','Sueldos y nóminas'],['Paga extra','Sueldos y nóminas'],['Comisión de mantenimiento','Comisiones del banco'],['Comisión TPV','Comisión TPV (tarjetas)'],['Cuota del préstamo','Préstamo o leasing']];
   $('b-tipo').innerHTML=TIPOS_B.map(t=>`<option>${t}</option>`).join('');
   $('b-chips').innerHTML=ATAJOS_B.map(([c],i)=>`<button type="button" data-i="${i}">${esc(c)}</button>`).join('');
   $('b-chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{const[c,t]=ATAJOS_B[+b.dataset.i];
