@@ -85,7 +85,10 @@
     aviso(t);const s=document.getElementById('sync');if(s){s.textContent=c==='permission-denied'?'Esta cuenta no tiene permiso: revisa los correos en las reglas de Firestore':'No se pudo guardar en la nube';s.classList.remove('ok')}};
   const listo=(async()=>{
     const[{initializeApp},A,F]=await Promise.all([import(U+'firebase-app.js'),import(U+'firebase-auth.js'),import(U+'firebase-firestore.js')]);
-    const fb=initializeApp(cfg);const auth=A.getAuth(fb);
+    const fb=initializeApp(cfg);
+    // App Check (reCAPTCHA Enterprise): solo si se pone la clave en firebase-config.js; lo pide Gemini si en la consola está «Aplicada»
+    if(window.FIREBASE_APPCHECK_CLAVE){try{const AC=await import(U+'firebase-app-check.js');AC.initializeAppCheck(fb,{provider:new AC.ReCaptchaEnterpriseProvider(window.FIREBASE_APPCHECK_CLAVE),isTokenAutoRefreshEnabled:true})}catch(e){console.error('App Check',e)}}
+    const auth=A.getAuth(fb);
     // copia en el dispositivo: la app sigue funcionando sin cobertura y sube los cambios al volver
     let fs;try{fs=F.initializeFirestore(fb,{ignoreUndefinedProperties:true,localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()})})}
     catch(e){fs=F.initializeFirestore(fb,{ignoreUndefinedProperties:true})}
@@ -193,7 +196,7 @@
       // el plan gratis da un cupo diario pequeño por modelo: si uno se agota (o no existe), se prueba el siguiente
       const MODELOS=[...new Set([window.FIREBASE_IA_MODELO||'gemini-3.8-flash','gemini-3.5-flash','gemini-3.5-flash-lite'])]
         .map(m=>AI.getGenerativeModel(ai,{model:m,generationConfig:{responseMimeType:'application/json'}}));
-      const COD=e=>/prepay|credits are depleted|billing/i.test(String(e&&e.message))?'no_credit':/429|quota|exhausted/i.test(String(e&&e.message))?(/per ?day|PerDay|retry in \d+h/i.test(String(e&&e.message))?'daily_quota':'rate_limited'):/404|not found|no longer available/i.test(String(e&&e.message))?'no_model':/safety|blocked/i.test(String(e&&e.message))?'refused':'error';
+      const COD=e=>/app ?check/i.test(String(e&&e.message))?'app_check':/prepay|credits are depleted|billing/i.test(String(e&&e.message))?'no_credit':/429|quota|exhausted/i.test(String(e&&e.message))?(/per ?day|PerDay|retry in \d+h/i.test(String(e&&e.message))?'daily_quota':'rate_limited'):/404|not found|no longer available/i.test(String(e&&e.message))?'no_model':/safety|blocked/i.test(String(e&&e.message))?'refused':'error';
       async function generar(partes){let ult;
         for(const m of MODELOS){try{return await m.generateContent(partes)}catch(e){ult=e;if(!['daily_quota','rate_limited','no_model'].includes(COD(e)))break}}
         throw ult}

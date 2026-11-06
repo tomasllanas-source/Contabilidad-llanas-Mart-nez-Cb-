@@ -18,3 +18,6 @@ window.FIREBASE_FOTOS=true;
 // activa «Firebase AI Logic» en la consola y pon true.
 window.FIREBASE_IA=true;
 window.FIREBASE_IA_MODELO='gemini-3.8-flash';
+// App Check: si en la consola (App Check → APIs) «Firebase AI Logic» está «Aplicada», Gemini exige esta clave.
+// Crea una clave de reCAPTCHA Enterprise para la web, regístrala en App Check y pégala aquí. Vacío = sin App Check.
+window.FIREBASE_APPCHECK_CLAVE='';
