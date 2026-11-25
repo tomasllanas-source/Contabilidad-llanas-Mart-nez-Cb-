@@ -175,6 +175,11 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .grupos .calc .tot{font-weight:600;font-size:15px;border-bottom:1px solid var(--line)}
 .grupos .calc .sub{color:var(--muted);font-size:13px;padding:4px 0 4px 10px}
 .grupos .calc .sub b{font-weight:500;color:var(--fg)}
+.provs{margin:0 0 12px}
+.provs summary{cursor:pointer;font-weight:600;font-size:15px;padding:8px 0}
+.provs .calc div{cursor:pointer}
+.provs .calc div[aria-pressed="true"]{font-weight:700}
+.provs .calc small{color:var(--muted);font-weight:400}
 .sumline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
 .sumline b{font-family:var(--f-num);color:var(--fg)}
 .pers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -400,7 +405,8 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
         <label>Fecha de la factura<input id="g-ffac" type="date"><span class="hint">La que pone la factura, para el asesor</span></label>
         <label>Categoría<select id="g-cat"></select></label>
       </div>
-      <label>Proveedor<input id="g-prov" type="text" placeholder="Ej.: Cárnicas del Valle"></label>
+      <label>Proveedor<select id="g-prov-sel"></select></label>
+      <label id="g-prov-w" hidden>Nombre del proveedor nuevo<input id="g-prov" type="text" placeholder="Ej.: Cárnicas del Valle"><span class="hint">Se queda guardado en la lista al guardar el gasto</span></label>
       <label>Concepto<input id="g-con" type="text" placeholder="Ej.: 2 canales de ternera"></label>
       <div class="grid2">
         <label>Importe total<span class="fld"><input id="g-total" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span><span class="hint">Con IVA, lo que pagas</span></label>
@@ -429,6 +435,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     <section class="panel">
       <div class="sumline"><h3>Gastos del periodo</h3><span>Total <b id="g-sum">–</b></span></div>
       <div class="grupos" id="g-grupos"></div>
+      <details class="provs" id="g-provs-w"><summary>Suma por proveedor</summary><div class="calc" id="g-provs"></div></details>
       <div class="seg" id="g-filtro" style="justify-content:flex-start"></div>
       <div class="items" id="g-lista"></div>
     </section>
@@ -552,7 +559,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   let conPers=false;try{if(localStorage.getItem('cont-conpers')==='1')conPers=true}catch(e){}
   let filtroPer='todos',editPer=null;
   try{const v=localStorage.getItem('cont-verban');if(['lista','dias','meses'].includes(v))verBan=v}catch(e){}
-  let per='mes',ref=new Date(),pDesde='',pHasta='',ddV='total',tab='r',filtroCat='todas',editId=null,borrarPend=null;
+  let per='mes',ref=new Date(),pDesde='',pHasta='',ddV='total',tab='r',filtroCat='todas',filtroProv='',editId=null,borrarPend=null;
 
   // ---------- datos de ejemplo (solo se muestran si no hay nada apuntado) ----------
   function ejemplo(){
@@ -837,7 +844,7 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
     const base=baseFoto!=null&&Math.abs(baseFoto.total-total)<0.01?baseFoto.base:r2(total/(1+pct/100));
     $('g-base').textContent=eur(base);$('g-iva').textContent=eur(r2(total-base));return{total,pct,base}}
   ['g-total','g-pct'].forEach(i=>$(i).addEventListener('input',calcGasto));
-  function limpiarGasto(){editId=null;baseFoto=null;$('g-fecha').value=hoy;$('g-ffac').value='';$('g-cat').value=CATS[0];$('g-pct').value=10;['g-prov','g-con','g-total'].forEach(i=>$(i).value='');$('g-forma').value='Transferencia';$('g-pag').checked=true;TIPOS_IVA.forEach(t=>$('g-b'+t).value='');setMix(false);
+  function limpiarGasto(){editId=null;baseFoto=null;$('g-fecha').value=hoy;$('g-ffac').value='';$('g-cat').value=CATS[0];$('g-pct').value=10;['g-con','g-total'].forEach(i=>$(i).value='');setProv('');$('g-forma').value='Transferencia';$('g-pag').checked=true;TIPOS_IVA.forEach(t=>$('g-b'+t).value='');setMix(false);
     $('g-tit').textContent='Nuevo gasto';$('g-guardar').textContent='Guardar gasto';$('g-cancel').hidden=true;$('g-fstat').textContent='';
     if(fotoPend)URL.revokeObjectURL(fotoPend.url);fotoPend=null;fotoActual=null;carpetaManual=false;autoCarpeta();pintarFotoForm();calcGasto()}
   $('g-cancel').onclick=limpiarGasto;
@@ -857,7 +864,27 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
       limpiarGasto()}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
     $('g-guardar').disabled=false};
   async function pagar(id){const x=gastos.find(g=>g.id===id);if(!x)return;try{await guardar('gastos',{...x,pagado:true});toast('Marcado como pagado')}catch(e){toast('No se pudo guardar.')}}
+  // ---------- proveedores: la lista sale de los gastos ya apuntados ----------
+  const claveProv=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+  function listaProvs(){const m={};
+    G().forEach(x=>{const k=claveProv(x.proveedor);if(!k)return;const o=m[k]||(m[k]={nombre:x.proveedor.trim(),n:0,fecha:'',cat:x.cat});o.n++;if(x.fecha>=o.fecha){o.fecha=x.fecha;o.cat=x.cat}});
+    return Object.values(m).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'))}
+  function pintarProvSel(){const sel=$('g-prov-sel'),actual=$('g-prov').value.trim(),nuevo=!$('g-prov-w').hidden;
+    sel.innerHTML='<option value="">— Elige proveedor —</option>'+listaProvs().map(p=>`<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`).join('')+'<option value="__nuevo">+ Añadir proveedor nuevo…</option>';
+    if(nuevo)sel.value='__nuevo';else setProv(actual)}
+  function setProv(nombre,nuevo){nombre=String(nombre||'').trim();const p=listaProvs().find(p=>claveProv(p.nombre)===claveProv(nombre));
+    if(p&&!nuevo){$('g-prov-sel').value=p.nombre;$('g-prov').value=p.nombre;$('g-prov-w').hidden=true}
+    else if(nombre||nuevo){$('g-prov-sel').value='__nuevo';$('g-prov').value=nombre;$('g-prov-w').hidden=false}
+    else{$('g-prov-sel').value='';$('g-prov').value='';$('g-prov-w').hidden=true}}
+  $('g-prov-sel').onchange=()=>{const v=$('g-prov-sel').value;
+    if(v==='__nuevo'){$('g-prov').value='';$('g-prov-w').hidden=false;$('g-prov').focus();return}
+    $('g-prov').value=v;$('g-prov-w').hidden=true;
+    // pone la categoría de la última factura de ese proveedor (si no se está editando)
+    const p=listaProvs().find(p=>p.nombre===v);if(p&&!editId&&CATS.includes(p.cat)){$('g-cat').value=p.cat;autoCarpeta()}};
+  // si se escribe a mano un nombre que ya está en la lista, se usa el de la lista
+  $('g-prov').onblur=()=>{const p=listaProvs().find(p=>claveProv(p.nombre)===claveProv($('g-prov').value));if(p)setProv(p.nombre)};
   function renderGastos(){
+    pintarProvSel();
     const g=G().filter(x=>enRango(x.fecha));
     const usadas=[...new Set(g.map(x=>x.cat))];if(!['todas','pend','genero','general'].includes(filtroCat)&&!usadas.includes(filtroCat))filtroCat='todas';
     const grupo=(tit,lista)=>{const porCat={};lista.forEach(x=>porCat[x.cat]=r2((porCat[x.cat]||0)+x.total));
@@ -866,13 +893,21 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
     const ops=[['todas','Todos'],['genero','Facturas de género'],['general','Gastos generales'],['pend','Pendientes'],...usadas.map(c=>[c,c.replace(/ \(.*\)/,'')])];
     $('g-filtro').innerHTML=ops.map(([k,l])=>`<button data-f="${esc(k)}" aria-pressed="${filtroCat===k}">${esc(l)}</button>`).join('');
     $('g-filtro').querySelectorAll('button').forEach(b=>b.onclick=()=>{filtroCat=b.dataset.f;renderGastos()});
-    const f=g.filter(x=>filtroCat==='todas'||(filtroCat==='pend'?!x.pagado:filtroCat==='genero'?esGenero(x):filtroCat==='general'?!esGenero(x):x.cat===filtroCat)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    // suma por proveedor del periodo; tocar uno filtra la lista
+    const porP={};g.forEach(x=>{const k=claveProv(x.proveedor)||'_';const o=porP[k]||(porP[k]={k,nombre:x.proveedor?x.proveedor.trim():'Sin proveedor',t:0,n:0});o.t=r2(o.t+x.total);o.n++});
+    const provs=Object.values(porP).sort((a,b)=>b.t-a.t);if(filtroProv&&!porP[filtroProv])filtroProv='';
+    $('g-provs-w').hidden=!provs.length;
+    $('g-provs').innerHTML=provs.map(p=>`<div data-p="${esc(p.k)}" aria-pressed="${filtroProv===p.k}"><span>${esc(p.nombre)} <small>(${p.n} ${p.n===1?'factura':'facturas'})</small></span><b>${eur(p.t)}</b></div>`).join('');
+    $('g-provs').querySelectorAll('[data-p]').forEach(d=>d.onclick=()=>{filtroProv=filtroProv===d.dataset.p?'':d.dataset.p;renderGastos();if(filtroProv)$('g-lista').scrollIntoView({behavior:'smooth',block:'start'})});
+    if(filtroProv)$('g-filtro').insertAdjacentHTML('afterbegin',`<button data-quitar-prov aria-pressed="true">${esc(porP[filtroProv].nombre)} ✕</button>`);
+    const qp=$('g-filtro').querySelector('[data-quitar-prov]');if(qp)qp.onclick=()=>{filtroProv='';renderGastos()};
+    const f=g.filter(x=>!filtroProv||(claveProv(x.proveedor)||'_')===filtroProv).filter(x=>filtroCat==='todas'||(filtroCat==='pend'?!x.pagado:filtroCat==='genero'?esGenero(x):filtroCat==='general'?!esGenero(x):x.cat===filtroCat)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     $('g-sum').textContent=eur(sum(f,'total'));
     $('g-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.proveedor||x.concepto||x.cat)}</div><div class="meta">${fechaCorta(x.fecha)}${x.fechaFactura&&x.fechaFactura!==x.fecha?' · factura del '+fechaCorta(x.fechaFactura):''}${x.concepto&&x.proveedor?' · '+esc(x.concepto):''} <span class="badge">${esc(x.cat.replace(/ \(.*\)/,''))}</span>${x.pagado?'':'<span class="badge pend">Pendiente</span>'}${x.ej?'<span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>${x.pct==='mixto'?(Array.isArray(x.desglose)?'IVA '+x.desglose.map(d=>d.pct+' %').join(' + '):'IVA mixto'):x.pct?'IVA '+x.pct+' %':'sin IVA'}</small></div>${x.ej?'':`<div class="acts">${x.foto?`<a href="${esc(urlBlob(x.foto))}" target="_blank" rel="noopener">Ver factura</a>`:''}${x.pagado?'':`<button data-pag="${x.id}">Marcar pagado</button>`}<button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay gastos aquí. Apunta cada factura arriba cuando te llegue.</div>';
     $('g-lista').querySelectorAll('[data-pag]').forEach(b=>b.onclick=()=>pagar(b.dataset.pag));
     $('g-lista').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>confirmarBorrar('gastos',b.dataset.del));
     $('g-lista').querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const x=gastos.find(y=>y.id===b.dataset.ed);if(!x)return;editId=x.id;
-      $('g-fecha').value=x.fecha;$('g-ffac').value=x.fechaFactura||'';$('g-cat').value=x.cat;$('g-prov').value=x.proveedor;$('g-con').value=x.concepto;$('g-total').value=fmtIn(x.total);
+      $('g-fecha').value=x.fecha;$('g-ffac').value=x.fechaFactura||'';$('g-cat').value=x.cat;setProv(x.proveedor);$('g-con').value=x.concepto;$('g-total').value=fmtIn(x.total);
       TIPOS_IVA.forEach(t=>$('g-b'+t).value='');setMix(false);
       if(x.pct==='mixto'&&x.desglose){baseFoto=null;setMix(true);x.desglose.forEach(d=>{if($('g-b'+d.pct))$('g-b'+d.pct).value=fmtIn(d.base)})}
       else if(x.pct==='mixto'){baseFoto={total:x.total,base:x.base}}else{baseFoto=null;$('g-pct').value=x.pct}
@@ -918,7 +953,7 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
       const d=await sample.json(prompt,{images:[img],modelTier:'default'});
       if(!d||typeof d!=='object')throw new Error('vacío');
       if(d.fecha&&/^\d{4}-\d{2}-\d{2}$/.test(d.fecha))$('g-ffac').value=d.fecha;
-      if(d.proveedor)$('g-prov').value=d.proveedor;if(d.concepto)$('g-con').value=d.concepto;
+      if(d.proveedor)setProv(d.proveedor);if(d.concepto)$('g-con').value=d.concepto;
       if(d.categoria&&CATS.includes(d.categoria)){$('g-cat').value=d.categoria;autoCarpeta()}
       const bases=Array.isArray(d.bases)?d.bases.filter(b=>b&&isFinite(+b.base)):[];
       let total=+d.total||0;const sb=r2(bases.reduce((s,b)=>s+(+b.base),0));
