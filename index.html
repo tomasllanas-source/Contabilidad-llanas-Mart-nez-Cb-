@@ -124,6 +124,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .ticket.pos .big strong{color:var(--elab)} .ticket.neg .big strong{color:var(--accent)}
 .rows{display:grid;border-top:1px dashed var(--line)}
 .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.row.sub{padding:4px 0 4px 14px;font-size:13px;color:var(--muted)}
 .row b{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:500;white-space:nowrap}
 .row.tot{font-weight:700} .row.tot b{font-weight:700}
 .row small{color:var(--muted)}
@@ -248,11 +249,16 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
         <div class="row"><span><span id="res-gas-lbl-t">Gastos</span> <small>(con IVA)</small></span><b id="res-gas-t">–</b></div>
         <div class="row" id="res-ban-w"><span>Banco <small>(tributos, comisiones…)</small></span><b id="res-ban">–</b></div>
         <div class="row" id="res-per-w" hidden><span>Fuera de empresa <small>(gastos personales)</small></span><b id="res-per">–</b></div>
+        <div class="row sub" id="res-per-efe-w" hidden><span>· pagado en efectivo</span><b id="res-per-efe">–</b></div>
+        <div class="row sub" id="res-per-ban-w" hidden><span>· pagado por el banco</span><b id="res-per-ban">–</b></div>
+        <div class="row sub" id="res-per-sin-w" hidden><span>· sin indicar</span><b id="res-per-sin">–</b></div>
         <div class="row tot"><span>Margen sobre ventas</span><b id="res-mar">–</b></div>
         <div class="row"><span>Días de caja apuntados</span><b id="res-dias">–</b></div>
         <div class="row"><span>Venta media por día <small>(con IVA)</small></span><b id="res-media">–</b></div>
         <div class="row tot"><span>Cobrado en efectivo <small>(con IVA)</small></span><b id="res-efe">–</b></div>
+        <div class="row" id="res-efe-q-w" hidden><span>Efectivo que te queda <small>(cobrado en efectivo − personal en efectivo)</small></span><b id="res-efe-q">–</b></div>
         <div class="row tot"><span>Cobrado con tarjeta <small>(con IVA)</small></span><b id="res-tar">–</b></div>
+        <div class="row" id="res-ban-q-w" hidden><span>En el banco te queda <small>(cobrado con tarjeta − personal por banco)</small></span><b id="res-ban-q">–</b></div>
         <div class="row" id="res-otr-w"><span>Bizum y otros <small>(con IVA)</small></span><b id="res-otr">–</b></div>
       </div>
     </section>
@@ -662,7 +668,14 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     const ing=sum(v,'base'),gas=sum(g,'base'),ben=r2(ing-gas-bt-pt);$('res-per').textContent=eur(pt);
     $('res-ben').textContent=eur(ben);$('res-ing').textContent=eur(ing);$('res-gas').textContent=eur(gas);$('res-ing-t').textContent=eur(sum(v,'total'));$('res-gas-t').textContent=eur(sum(g,'total'));$('res-ban').textContent=eur(bt);
     $('res-mar').textContent=ing?(ben/ing*100).toLocaleString('es-ES',{maximumFractionDigits:1})+' %':'–';
-    const nd=new Set(v.map(x=>x.fecha)).size;$('res-dias').textContent=nd;$('res-efe').textContent=eur(sum(v,'efectivo'));$('res-tar').textContent=eur(sum(v,'tarjeta'));$('res-otr').textContent=eur(sum(v,'otros'));$('res-otr-w').hidden=!sum(v,'otros');$('res-media').textContent=nd?eur(sum(v,'total')/nd):'–';
+    const nd=new Set(v.map(x=>x.fecha)).size;$('res-dias').textContent=nd;$('res-efe').textContent=eur(sum(v,'efectivo'));$('res-tar').textContent=eur(sum(v,'tarjeta'));$('res-otr').textContent=eur(sum(v,'otros'));$('res-otr-w').hidden=!sum(v,'otros');
+    // gastos personales separados por cómo se pagaron (pestaña Personal)
+    const pPago=k=>sum(pp.filter(x=>(x.pago==='efectivo'||x.pago==='banco'?x.pago:'sin')===k),'importe');
+    const pEf=pPago('efectivo'),pBa=pPago('banco'),pSi=pPago('sin');
+    $('res-per-efe').textContent=eur(pEf);$('res-per-ban').textContent=eur(pBa);$('res-per-sin').textContent=eur(pSi);
+    $('res-per-efe-w').hidden=$('res-per-ban-w').hidden=!conPers;$('res-per-sin-w').hidden=!conPers||!pSi;
+    $('res-efe-q').textContent=eur(r2(sum(v,'efectivo')-pEf));$('res-ban-q').textContent=eur(r2(sum(v,'tarjeta')-pBa));
+    $('res-efe-q-w').hidden=$('res-ban-q-w').hidden=!conPers;$('res-media').textContent=nd?eur(sum(v,'total')/nd):'–';
     $('res-banco').hidden=!bp.length;
     const pb={};bp.forEach(x=>pb[x.tipo]=(pb[x.tipo]||0)+(+x.importe||0));const lb=Object.entries(pb).sort((a,b)=>b[1]-a[1]);const mb=lb.length?lb[0][1]:1;
     $('cats-ban').innerHTML=lb.map(([c,n])=>`<div class="cb"><div class="t"><span>${esc(c)}</span><b>${eur(n)}</b></div><div class="bar"><i class="ban" style="width:${(n/mb*100).toFixed(1)}%"></i></div></div>`).join('')+`<div class="sumline"><span>Total banco</span><b>${eur(btReal)}</b></div>`;
