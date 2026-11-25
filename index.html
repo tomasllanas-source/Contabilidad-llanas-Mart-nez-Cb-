@@ -176,6 +176,9 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .grupos .calc .sub{color:var(--muted);font-size:13px;padding:4px 0 4px 10px}
 .grupos .calc .sub b{font-weight:500;color:var(--fg)}
 .provsel{margin:4px 0 8px}
+.provdel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-4px 0 10px}
+.provdel .btn{padding:6px 12px;font-size:13px}
+.provdel .btn.danger{border-color:var(--accent);color:var(--accent)}
 .provcard{margin:0 0 12px}
 .provcard .tot{font-weight:700;font-size:16px;border-bottom:1px solid var(--line)}
 .provcard .sub{color:var(--muted);font-size:13px}
@@ -411,6 +414,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
         <label>Categoría<select id="g-cat"></select></label>
       </div>
       <label>Proveedor<select id="g-prov-sel"></select></label>
+      <div class="provdel" id="g-prov-del-w" hidden><button type="button" class="btn" id="g-prov-del">Quitar de la lista</button><span class="hint" id="g-prov-del-txt"></span></div>
       <label id="g-prov-w" hidden>Nombre del proveedor nuevo<input id="g-prov" type="text" placeholder="Ej.: Cárnicas del Valle"><span class="hint">Se queda guardado en la lista al guardar el gasto</span></label>
       <label>Concepto<input id="g-con" type="text" placeholder="Ej.: 2 canales de ternera"></label>
       <div class="grid2">
@@ -558,7 +562,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   const CAT_IVA={'Alquiler':21,'Luz, agua y gas':21,'Personal (sueldos y SS)':0,'Cuota de autónomo':0,'Gestoría y banco':21,'Combustible y vehículos':21,'Maquinaria y mantenimiento':21,'Impuestos y tasas':0,'Envases y bolsas':21,'Otros':21,'Género (carne)':10,'Embutidos y otros productos':10,'Ingredientes y especias':10};
   function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2400)}
 
-  let ventas=[],gastos=[],banco=[],personal=[],documentos=[],db=null,downloads=null,sample=null,assets=null;
+  let provs=[],ventas=[],gastos=[],banco=[],personal=[],documentos=[],db=null,downloads=null,sample=null,assets=null;
   let carpeta='gastos',carpetaManual=false,carpetaVista='gastos',fotoPend=null,fotoActual=null;
   try{const c=localStorage.getItem('cont-carpeta');if(c==='gastos'||c==='facturas')carpeta=c}catch(e){}
   let conBanco=true;try{if(localStorage.getItem('cont-conbanco')==='0')conBanco=false}catch(e){}
@@ -609,10 +613,12 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   const limpio=o=>{const c={...o};delete c.id;delete c.ej;return c};
   async function guardar(col,o){
     if(db){await db.collection(col).doc(o.id).set(limpio(o));return}
+    if(col==='proveedores'){provs=provs.filter(x=>x.id!==o.id).concat(o);local.set(col,provs);render();return}
     const arr=col==='ventas'?ventas:col==='banco'?banco:col==='personal'?personal:gastos;const i=arr.findIndex(x=>x.id===o.id);if(i>=0)arr[i]={...o,ej:false};else arr.push({...o,ej:false});local.set(col,arr);render();
   }
   async function borrar(col,id){
     if(db){await db.collection(col).doc(id).delete();return}
+    if(col==='proveedores'){provs=provs.filter(x=>x.id!==id);local.set(col,provs);render();return}
     if(col==='ventas')ventas=ventas.filter(x=>x.id!==id);else if(col==='banco')banco=banco.filter(x=>x.id!==id);else if(col==='personal')personal=personal.filter(x=>x.id!==id);else gastos=gastos.filter(x=>x.id!==id);local.set(col,col==='ventas'?ventas:col==='banco'?banco:col==='personal'?personal:gastos);render();
   }
 
@@ -866,6 +872,7 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
       try{const up=await assets.upload(fotoPend.blob,{type:fotoPend.tipo});vieja=o.foto;o.foto=up.id;o.fotoTipo=fotoPend.tipo;o.carpeta=carpeta}
       catch(e){$('g-fstat').className='fstat err';$('g-fstat').textContent=e&&e.code==='quota_or_state'?'No queda espacio para más fotos. Quita alguna del Archivo y vuelve a probar.':e&&e.code==='too_large'?'El archivo es demasiado grande (máximo 20 MB).':'No se pudo guardar la foto. Vuelve a pulsar «Guardar».';$('g-guardar').disabled=false;return}
     }
+    if(o.proveedor&&oculto(o.proveedor))borrar('proveedores',claveProv(o.proveedor)).catch(()=>{});
     try{await guardar('gastos',o);toast(editId?'Gasto actualizado':(o.foto?'Gasto guardado con su foto en '+NOMC[o.carpeta]:'Gasto guardado'));
       if(vieja&&vieja!==o.foto&&assets)assets.delete(vieja).catch(()=>{});
       limpiarGasto()}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
@@ -876,20 +883,32 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
   function listaProvs(){const m={};
     G().forEach(x=>{const k=claveProv(x.proveedor);if(!k)return;const o=m[k]||(m[k]={nombre:x.proveedor.trim(),n:0,fecha:'',cat:x.cat});o.n++;if(x.fecha>=o.fecha){o.fecha=x.fecha;o.cat=x.cat}});
     return Object.values(m).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'))}
+  // proveedores quitados del desplegable (sus facturas siguen contando en las sumas)
+  const oculto=nombre=>provs.some(x=>x.oculto&&x.id===claveProv(nombre));
+  const provsForm=()=>listaProvs().filter(p=>!oculto(p.nombre));
+  let provDelPend=false;
   function pintarProvSel(){const sel=$('g-prov-sel'),actual=$('g-prov').value.trim(),nuevo=!$('g-prov-w').hidden;
-    sel.innerHTML='<option value="">— Elige proveedor —</option>'+listaProvs().map(p=>`<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`).join('')+'<option value="__nuevo">+ Añadir proveedor nuevo…</option>';
+    sel.innerHTML='<option value="">— Elige proveedor —</option>'+provsForm().map(p=>`<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`).join('')+'<option value="__nuevo">+ Añadir proveedor nuevo…</option>';
     if(nuevo)sel.value='__nuevo';else setProv(actual)}
-  function setProv(nombre,nuevo){nombre=String(nombre||'').trim();const p=listaProvs().find(p=>claveProv(p.nombre)===claveProv(nombre));
+  function pintarProvDel(){const v=$('g-prov-sel').value,ok=v&&v!=='__nuevo';$('g-prov-del-w').hidden=!ok;if(!ok){provDelPend=false;return}
+    $('g-prov-del').textContent=provDelPend?'¿Seguro? Toca otra vez para quitar «'+v+'»':'Quitar «'+v+'» de la lista';$('g-prov-del').classList.toggle('danger',provDelPend);
+    $('g-prov-del-txt').textContent=provDelPend?'Sus facturas no se borran.':''}
+  $('g-prov-del').onclick=async()=>{const v=$('g-prov-sel').value;if(!v||v==='__nuevo')return;
+    if(!provDelPend){provDelPend=true;pintarProvDel();return}
+    provDelPend=false;try{await guardar('proveedores',{id:claveProv(v),nombre:v,oculto:true});setProv('');toast('«'+v+'» quitado de la lista. Sus facturas siguen ahí.')}catch(e){toast('No se pudo guardar. Revisa la conexión.')}
+    pintarProvDel()};
+  function setProv(nombre,nuevo){provDelPend=false;nombre=String(nombre||'').trim();const p=provsForm().find(p=>claveProv(p.nombre)===claveProv(nombre));
     if(p&&!nuevo){$('g-prov-sel').value=p.nombre;$('g-prov').value=p.nombre;$('g-prov-w').hidden=true}
     else if(nombre||nuevo){$('g-prov-sel').value='__nuevo';$('g-prov').value=nombre;$('g-prov-w').hidden=false}
-    else{$('g-prov-sel').value='';$('g-prov').value='';$('g-prov-w').hidden=true}}
-  $('g-prov-sel').onchange=()=>{const v=$('g-prov-sel').value;
+    else{$('g-prov-sel').value='';$('g-prov').value='';$('g-prov-w').hidden=true}
+    pintarProvDel()}
+  $('g-prov-sel').onchange=()=>{const v=$('g-prov-sel').value;provDelPend=false;pintarProvDel();
     if(v==='__nuevo'){$('g-prov').value='';$('g-prov-w').hidden=false;$('g-prov').focus();return}
     $('g-prov').value=v;$('g-prov-w').hidden=true;
     // pone la categoría de la última factura de ese proveedor (si no se está editando)
     const p=listaProvs().find(p=>p.nombre===v);if(p&&!editId&&CATS.includes(p.cat)){$('g-cat').value=p.cat;autoCarpeta()}};
   // si se escribe a mano un nombre que ya está en la lista, se usa el de la lista
-  $('g-prov').onblur=()=>{const p=listaProvs().find(p=>claveProv(p.nombre)===claveProv($('g-prov').value));if(p)setProv(p.nombre)};
+  $('g-prov').onblur=()=>{const p=provsForm().find(p=>claveProv(p.nombre)===claveProv($('g-prov').value));if(p)setProv(p.nombre)};
   function renderGastos(){
     pintarProvSel();
     const g=G().filter(x=>enRango(x.fecha));
@@ -1174,7 +1193,7 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
   verTab(tab);limpiarGasto();limpiarBan();limpiarPer();cargarCaja();render();
   // fuera de Claude: descargas con el navegador
   const bajarNav={async save({filename,data}){const b=data instanceof Blob?data:new Blob([data],{type:/\.csv$/i.test(filename)?'text/csv;charset=utf-8':'application/octet-stream'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}};
-  function verLocal(){if(!downloads)downloads=bajarNav;ventas=local.get('ventas');gastos=local.get('gastos');banco=local.get('banco');personal=local.get('personal');$('sync').textContent='Guardado solo en este dispositivo';$('sync').classList.remove('ok');cargarCaja();render()}
+  function verLocal(){if(!downloads)downloads=bajarNav;ventas=local.get('ventas');gastos=local.get('gastos');banco=local.get('banco');personal=local.get('personal');provs=local.get('proveedores');$('sync').textContent='Guardado solo en este dispositivo';$('sync').classList.remove('ok');cargarCaja();render()}
   (async()=>{
     if(!window.claude||!window.claude.use){verLocal();return}
     try{downloads=await window.claude.use('downloads')}catch(e){downloads=null}
@@ -1188,6 +1207,7 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
     db.collection('ventas').onSnapshot(s=>{ventas=s.docs.map(x=>({...x.data(),id:x.id}));if(primeraV){primeraV=false;cargarCaja()}render()},err);
     db.collection('gastos').onSnapshot(s=>{gastos=s.docs.map(x=>({...x.data(),id:x.id}));render()},err);
     db.collection('banco').onSnapshot(s=>{banco=s.docs.map(x=>({...x.data(),id:x.id}));render()},err);
+    db.collection('proveedores').onSnapshot(s=>{provs=s.docs.map(x=>({...x.data(),id:x.id}));render()},err);
     db.collection('personal').onSnapshot(s=>{personal=s.docs.map(x=>({...x.data(),id:x.id}));render()},err);
     try{assets=await window.claude.use('assets')}catch(e){assets=null}
     if(assets)$('g-foto').hidden=false;
