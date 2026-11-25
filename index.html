@@ -473,10 +473,16 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
         <label>Importe<span class="fld"><input id="pp-imp" class="n" inputmode="decimal" placeholder="0,00"><i>€</i></span></label>
         <label>Nota<input id="pp-nota" type="text" placeholder="Opcional"></label>
       </div>
+      <p class="note" style="margin:4px 0 6px">¿Cómo lo pagas?</p>
+      <div class="seg izq" id="pp-pago">
+        <button type="button" data-p="efectivo" aria-pressed="true">Efectivo</button>
+        <button type="button" data-p="banco" aria-pressed="false">Banco (tarjeta, recibo, transferencia)</button>
+      </div>
       <div class="btns"><button class="btn morado" id="pp-guardar">Guardar gasto</button><button class="btn" id="pp-cancel" hidden>Cancelar</button></div>
     </section>
     <section class="panel">
       <div class="sumline"><h3>Fuera de empresa del periodo</h3><span>Total <b id="pp-sum">–</b></span></div>
+      <div class="grupos" id="pp-grupos"></div>
       <div class="seg" id="pp-filtro" style="justify-content:flex-start"></div>
       <div class="items" id="pp-lista"></div>
     </section>
@@ -971,27 +977,38 @@ Usa punto decimal. En "bases" pon una entrada por cada tipo de IVA de la factura
   // ---------- fuera de empresa ----------
   const TIPOS_P=['Casa (hipoteca, alquiler)','Comida y súper','Luz, agua y gas de casa','Coche particular','Hijos y colegio','Salud','Seguros personales','Ropa','Ocio y viajes','Préstamos personales','Otros'];
   $('pp-tipo').innerHTML=TIPOS_P.map(t=>`<option>${t}</option>`).join('');
-  function limpiarPer(){editPer=null;$('pp-fecha').value=hoy;$('pp-tipo').value=TIPOS_P[0];['pp-con','pp-imp','pp-nota'].forEach(i=>$(i).value='');
+  // cómo se paga: en efectivo (de la caja/bolsillo) o por el banco; los apuntes antiguos quedan «sin indicar»
+  let pagoPer='efectivo';
+  const NOMPAGO={efectivo:'Efectivo',banco:'Banco',sin:'Sin indicar'};
+  const pagoDe=x=>x.pago==='efectivo'||x.pago==='banco'?x.pago:'sin';
+  function setPagoPer(v){pagoPer=v;$('pp-pago').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===v))}
+  $('pp-pago').querySelectorAll('button').forEach(b=>b.onclick=()=>setPagoPer(b.dataset.p));
+  function limpiarPer(){editPer=null;setPagoPer('efectivo');$('pp-fecha').value=hoy;$('pp-tipo').value=TIPOS_P[0];['pp-con','pp-imp','pp-nota'].forEach(i=>$(i).value='');
     $('p-tit').textContent='Nuevo gasto fuera de empresa';$('pp-guardar').textContent='Guardar gasto';$('pp-cancel').hidden=true}
   $('pp-cancel').onclick=limpiarPer;
   $('pp-guardar').onclick=async()=>{const fecha=$('pp-fecha').value,importe=r2(Math.abs(pn($('pp-imp').value))),concepto=$('pp-con').value.trim();
     if(!fecha){toast('Pon la fecha.');return}if(!importe){toast('Apunta el importe.');return}
     const base=editPer?personal.find(x=>x.id===editPer):null;
-    const o={...(base||{id:nuevoId(),creado:Date.now()}),fecha,tipo:$('pp-tipo').value,concepto:concepto||$('pp-tipo').value,importe,nota:$('pp-nota').value.trim()};
+    const o={...(base||{id:nuevoId(),creado:Date.now()}),fecha,tipo:$('pp-tipo').value,concepto:concepto||$('pp-tipo').value,importe,nota:$('pp-nota').value.trim(),pago:pagoPer};
     $('pp-guardar').disabled=true;
     try{await guardar('personal',o);toast(editPer?'Gasto actualizado':'Guardado: '+o.concepto);limpiarPer()}catch(e){toast('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')}
     $('pp-guardar').disabled=false};
   function renderPersonal(){
     const p=personal.filter(x=>enRango(x.fecha));
-    const usados=[...new Set(p.map(x=>x.tipo))];if(filtroPer!=='todos'&&!usados.includes(filtroPer))filtroPer='todos';
-    $('pp-filtro').innerHTML=p.length?[['todos','Todos'],...usados.map(t=>[t,t.replace(/ \(.*\)/,'')])].map(([k,l])=>`<button data-f="${esc(k)}" aria-pressed="${filtroPer===k}">${esc(l)}</button>`).join(''):'';
+    const usados=[...new Set(p.map(x=>x.tipo))];
+    const pagos=['efectivo','banco','sin'].filter(k=>k!=='sin'||p.some(x=>pagoDe(x)==='sin'));
+    if(filtroPer!=='todos'&&!usados.includes(filtroPer)&&!pagos.includes(filtroPer))filtroPer='todos';
+    const grupo=(k)=>{const l=p.filter(x=>pagoDe(x)===k),porT={};l.forEach(x=>porT[x.tipo]=r2((porT[x.tipo]||0)+x.importe));
+      return `<div class="calc"><div class="tot"><span>${k==='efectivo'?'Pagado en efectivo':k==='banco'?'Pagado por el banco':'Sin indicar cómo se pagó'}</span><b>${eur(sum(l,'importe'))}</b></div>${Object.entries(porT).sort((a,b)=>b[1]-a[1]).map(([t,v])=>`<div class="sub"><span>${esc(t)}</span><b>${eur(v)}</b></div>`).join('')||'<div class="sub"><span>Nada en este periodo</span><b></b></div>'}</div>`};
+    $('pp-grupos').innerHTML=p.length?pagos.map(grupo).join(''):'';
+    $('pp-filtro').innerHTML=p.length?[['todos','Todos'],...pagos.map(k=>[k,NOMPAGO[k]]),...usados.map(t=>[t,t.replace(/ \(.*\)/,'')])].map(([k,l])=>`<button data-f="${esc(k)}" aria-pressed="${filtroPer===k}">${esc(l)}</button>`).join(''):'';
     $('pp-filtro').querySelectorAll('button').forEach(x=>x.onclick=()=>{filtroPer=x.dataset.f;renderPersonal()});
-    const f=p.filter(x=>filtroPer==='todos'||x.tipo===filtroPer).sort((a,c)=>c.fecha.localeCompare(a.fecha));
+    const f=p.filter(x=>filtroPer==='todos'||x.tipo===filtroPer||pagoDe(x)===filtroPer).sort((a,c)=>c.fecha.localeCompare(a.fecha));
     $('pp-sum').textContent=eur(sum(f,'importe'));
-    $('pp-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.concepto||x.tipo)}</div><div class="meta">${fechaCorta(x.fecha)} <span class="badge per">${esc(x.tipo.replace(/ \(.*\)/,''))}</span>${x.nota?' · '+esc(x.nota):''}</div></div><div class="price">${eur(x.importe)}</div><div class="acts"><button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div></div>`).join(''):'<div class="empty">No hay gastos fuera de empresa en este periodo. Apunta arriba lo que gastes en casa o en lo tuyo.</div>';
+    $('pp-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.concepto||x.tipo)}</div><div class="meta">${fechaCorta(x.fecha)} <span class="badge per">${esc(x.tipo.replace(/ \(.*\)/,''))}</span> <span class="badge">${NOMPAGO[pagoDe(x)]}</span>${x.nota?' · '+esc(x.nota):''}</div></div><div class="price">${eur(x.importe)}</div><div class="acts"><button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div></div>`).join(''):'<div class="empty">No hay gastos fuera de empresa en este periodo. Apunta arriba lo que gastes en casa o en lo tuyo.</div>';
     $('pp-lista').querySelectorAll('[data-del]').forEach(x=>x.onclick=()=>confirmarBorrar('personal',x.dataset.del));
     $('pp-lista').querySelectorAll('[data-ed]').forEach(x=>x.onclick=()=>{const o=personal.find(y=>y.id===x.dataset.ed);if(!o)return;editPer=o.id;
-      $('pp-fecha').value=o.fecha;$('pp-tipo').value=TIPOS_P.includes(o.tipo)?o.tipo:'Otros';$('pp-con').value=o.concepto||'';$('pp-imp').value=fmtIn(o.importe);$('pp-nota').value=o.nota||'';
+      $('pp-fecha').value=o.fecha;$('pp-tipo').value=TIPOS_P.includes(o.tipo)?o.tipo:'Otros';$('pp-con').value=o.concepto||'';$('pp-imp').value=fmtIn(o.importe);$('pp-nota').value=o.nota||'';setPagoPer(o.pago==='banco'?'banco':'efectivo');
       $('p-tit').textContent='Editar gasto fuera de empresa';$('pp-guardar').textContent='Guardar cambios';$('pp-cancel').hidden=false;window.scrollTo({top:0,behavior:'smooth'})});
   }
 
