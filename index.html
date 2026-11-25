@@ -170,6 +170,10 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .fstat{font-size:14px;color:var(--fg);margin:0}
 .fstat:empty{display:none}
 .fstat.err{color:var(--warn)}
+.grupos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:10px 0 12px}
+.grupos .calc .tot{font-weight:600;font-size:15px;border-bottom:1px solid var(--line)}
+.grupos .calc .sub{color:var(--muted);font-size:13px;padding:4px 0 4px 10px}
+.grupos .calc .sub b{font-weight:500;color:var(--fg)}
 .sumline{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
 .sumline b{font-family:var(--f-num);color:var(--fg)}
 .pers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -418,6 +422,7 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     </section>
     <section class="panel">
       <div class="sumline"><h3>Gastos del periodo</h3><span>Total <b id="g-sum">–</b></span></div>
+      <div class="grupos" id="g-grupos"></div>
       <div class="seg" id="g-filtro" style="justify-content:flex-start"></div>
       <div class="items" id="g-lista"></div>
     </section>
@@ -521,6 +526,9 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
   const hoy=iso(new Date());
   const fechaCorta=f=>{const [y,m,d]=f.split('-');const dt=new Date(+y,+m-1,+d);return dt.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'})};
   const CATS=['Género (carne)','Embutidos y otros productos','Ingredientes y especias','Envases y bolsas','Alquiler','Luz, agua y gas','Personal (sueldos y SS)','Cuota de autónomo','Gestoría y banco','Combustible y vehículos','Maquinaria y mantenimiento','Impuestos y tasas','Otros'];
+  // facturas de género (lo que se compra para vender) frente al resto de gastos del negocio
+  const GENERO=['Género (carne)','Embutidos y otros productos','Ingredientes y especias'];
+  const esGenero=x=>GENERO.includes(x.cat);
   const CAT_IVA={'Alquiler':21,'Luz, agua y gas':21,'Personal (sueldos y SS)':0,'Cuota de autónomo':0,'Gestoría y banco':21,'Combustible y vehículos':21,'Maquinaria y mantenimiento':21,'Impuestos y tasas':0,'Envases y bolsas':21,'Otros':21,'Género (carne)':10,'Embutidos y otros productos':10,'Ingredientes y especias':10};
   function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2400)}
 
@@ -832,11 +840,14 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
   async function pagar(id){const x=gastos.find(g=>g.id===id);if(!x)return;try{await guardar('gastos',{...x,pagado:true});toast('Marcado como pagado')}catch(e){toast('No se pudo guardar.')}}
   function renderGastos(){
     const g=G().filter(x=>enRango(x.fecha));
-    const usadas=[...new Set(g.map(x=>x.cat))];if(filtroCat!=='todas'&&filtroCat!=='pend'&&!usadas.includes(filtroCat))filtroCat='todas';
-    const ops=[['todas','Todos'],['pend','Pendientes'],...usadas.map(c=>[c,c.replace(/ \(.*\)/,'')])];
+    const usadas=[...new Set(g.map(x=>x.cat))];if(!['todas','pend','genero','general'].includes(filtroCat)&&!usadas.includes(filtroCat))filtroCat='todas';
+    const grupo=(tit,lista)=>{const porCat={};lista.forEach(x=>porCat[x.cat]=r2((porCat[x.cat]||0)+x.total));
+      return `<div class="calc"><div class="tot"><span>${tit}</span><b>${eur(sum(lista,'total'))}</b></div>${Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([c,t])=>`<div class="sub"><span>${esc(c)}</span><b>${eur(t)}</b></div>`).join('')||'<div class="sub"><span>Nada en este periodo</span><b></b></div>'}</div>`};
+    $('g-grupos').innerHTML=grupo('Facturas de género',g.filter(esGenero))+grupo('Gastos generales',g.filter(x=>!esGenero(x)));
+    const ops=[['todas','Todos'],['genero','Facturas de género'],['general','Gastos generales'],['pend','Pendientes'],...usadas.map(c=>[c,c.replace(/ \(.*\)/,'')])];
     $('g-filtro').innerHTML=ops.map(([k,l])=>`<button data-f="${esc(k)}" aria-pressed="${filtroCat===k}">${esc(l)}</button>`).join('');
     $('g-filtro').querySelectorAll('button').forEach(b=>b.onclick=()=>{filtroCat=b.dataset.f;renderGastos()});
-    const f=g.filter(x=>filtroCat==='todas'||(filtroCat==='pend'?!x.pagado:x.cat===filtroCat)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    const f=g.filter(x=>filtroCat==='todas'||(filtroCat==='pend'?!x.pagado:filtroCat==='genero'?esGenero(x):filtroCat==='general'?!esGenero(x):x.cat===filtroCat)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     $('g-sum').textContent=eur(sum(f,'total'));
     $('g-lista').innerHTML=f.length?f.map(x=>`<div class="item"><div><div class="name">${esc(x.proveedor||x.concepto||x.cat)}</div><div class="meta">${fechaCorta(x.fecha)}${x.fechaFactura&&x.fechaFactura!==x.fecha?' · factura del '+fechaCorta(x.fechaFactura):''}${x.concepto&&x.proveedor?' · '+esc(x.concepto):''} <span class="badge">${esc(x.cat.replace(/ \(.*\)/,''))}</span>${x.pagado?'':'<span class="badge pend">Pendiente</span>'}${x.ej?'<span class="badge ej">Ejemplo</span>':''}</div></div><div class="price">${eur(x.total)}<small>${x.pct==='mixto'?(Array.isArray(x.desglose)?'IVA '+x.desglose.map(d=>d.pct+' %').join(' + '):'IVA mixto'):x.pct?'IVA '+x.pct+' %':'sin IVA'}</small></div>${x.ej?'':`<div class="acts">${x.foto?`<a href="${esc(urlBlob(x.foto))}" target="_blank" rel="noopener">Ver factura</a>`:''}${x.pagado?'':`<button data-pag="${x.id}">Marcar pagado</button>`}<button data-ed="${x.id}">Editar</button><button data-del="${x.id}" class="${borrarPend===x.id?'danger':''}">${borrarPend===x.id?'¿Seguro? Toca otra vez para quitar':'Quitar'}</button></div>`}</div>`).join(''):'<div class="empty">No hay gastos aquí. Apunta cada factura arriba cuando te llegue.</div>';
     $('g-lista').querySelectorAll('[data-pag]').forEach(b=>b.onclick=()=>pagar(b.dataset.pag));
@@ -857,7 +868,6 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
   const urlBlob=id=>/^fs:/.test(id)&&window.nubeUrl?window.nubeUrl(id):/^https?:\/\//.test(id)?id:'/_blob/'+id;
   function setCarpeta(c){carpeta=c;$('g-carp').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===c));try{localStorage.setItem('cont-carpeta',c)}catch(e){}}
   // el género va a «Facturas» y el resto a «Gastos», salvo que se elija a mano
-  const GENERO=['Género (carne)','Embutidos y otros productos','Ingredientes y especias'];
   function autoCarpeta(){if(carpetaManual)return;setCarpeta(GENERO.includes($('g-cat').value)?'facturas':'gastos');pintarFotoForm()}
   $('g-carp').querySelectorAll('button').forEach(b=>b.onclick=()=>{carpetaManual=true;setCarpeta(b.dataset.c);pintarFotoForm()});setCarpeta(carpeta);
   const miniatura=(src,tipo)=>tipo==='application/pdf'?'<div class="pdf">PDF</div>':`<img src="${esc(src)}" alt="Foto de la factura">`;
