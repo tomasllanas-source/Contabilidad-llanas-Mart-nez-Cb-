@@ -175,6 +175,11 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .grupos .calc .tot{font-weight:600;font-size:15px;border-bottom:1px solid var(--line)}
 .grupos .calc .sub{color:var(--muted);font-size:13px;padding:4px 0 4px 10px}
 .grupos .calc .sub b{font-weight:500;color:var(--fg)}
+.provsel{margin:4px 0 8px}
+.provcard{margin:0 0 12px}
+.provcard .tot{font-weight:700;font-size:16px;border-bottom:1px solid var(--line)}
+.provcard .sub{color:var(--muted);font-size:13px}
+.provcard .sub b{font-weight:500;color:var(--fg)}
 .provs{margin:0 0 12px}
 .provs summary{cursor:pointer;font-weight:600;font-size:15px;padding:8px 0}
 .provs .calc div{cursor:pointer}
@@ -435,6 +440,8 @@ input.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
     <section class="panel">
       <div class="sumline"><h3>Gastos del periodo</h3><span>Total <b id="g-sum">–</b></span></div>
       <div class="grupos" id="g-grupos"></div>
+      <label class="provsel" id="g-verprov-w">Ver la suma de un proveedor<select id="g-verprov"></select></label>
+      <div class="calc provcard" id="g-provcard" hidden></div>
       <details class="provs" id="g-provs-w"><summary>Suma por proveedor</summary><div class="calc" id="g-provs"></div></details>
       <div class="seg" id="g-filtro" style="justify-content:flex-start"></div>
       <div class="items" id="g-lista"></div>
@@ -895,11 +902,25 @@ Usa punto decimal. En "por_iva" pon una entrada por cada tipo de IVA que aparezc
     $('g-filtro').querySelectorAll('button').forEach(b=>b.onclick=()=>{filtroCat=b.dataset.f;renderGastos()});
     // suma por proveedor del periodo; tocar uno filtra la lista
     const porP={};g.forEach(x=>{const k=claveProv(x.proveedor)||'_';const o=porP[k]||(porP[k]={k,nombre:x.proveedor?x.proveedor.trim():'Sin proveedor',t:0,n:0});o.t=r2(o.t+x.total);o.n++});
-    const provs=Object.values(porP).sort((a,b)=>b.t-a.t);if(filtroProv&&!porP[filtroProv])filtroProv='';
+    const provs=Object.values(porP).sort((a,b)=>b.t-a.t);const todosP=listaProvs();if(filtroProv&&filtroProv!=='_'&&!todosP.some(p=>claveProv(p.nombre)===filtroProv))filtroProv='';if(filtroProv==='_'&&!porP._)filtroProv='';
+    // elegir un proveedor y ver su suma (en el periodo, en el año y desde siempre)
+    $('g-verprov-w').hidden=!todosP.length;
+    $('g-verprov').innerHTML='<option value="">— Elige un proveedor —</option>'+todosP.map(p=>`<option value="${esc(claveProv(p.nombre))}">${esc(p.nombre)}</option>`).join('');
+    $('g-verprov').value=filtroProv&&filtroProv!=='_'?filtroProv:'';
+    $('g-verprov').onchange=()=>{filtroProv=$('g-verprov').value;renderGastos()};
+    if(filtroProv&&filtroProv!=='_'){const de=G().filter(x=>claveProv(x.proveedor)===filtroProv),ep=g.filter(x=>claveProv(x.proveedor)===filtroProv),an=String(ref.getFullYear()),ea=de.filter(x=>x.fecha.startsWith(an)),pend=ep.filter(x=>!x.pagado);
+      const nf=n=>n+' '+(n===1?'factura':'facturas');
+      $('g-provcard').innerHTML=`<div class="tot"><span>${esc(todosP.find(p=>claveProv(p.nombre)===filtroProv).nombre)} · este periodo</span><b>${eur(sum(ep,'total'))}</b></div>
+        <div class="sub"><span>${nf(ep.length)} · sin IVA</span><b>${eur(sum(ep,'base'))}</b></div>
+        <div class="sub"><span>IVA</span><b>${eur(sum(ep,'iva'))}</b></div>
+        ${pend.length?`<div class="sub"><span>Pendiente de pagar (${nf(pend.length)})</span><b>${eur(sum(pend,'total'))}</b></div>`:''}
+        <div class="sub"><span>En todo ${an} (${nf(ea.length)})</span><b>${eur(sum(ea,'total'))}</b></div>
+        <div class="sub"><span>Desde el principio (${nf(de.length)})</span><b>${eur(sum(de,'total'))}</b></div>`;
+      $('g-provcard').hidden=false}else $('g-provcard').hidden=true;
     $('g-provs-w').hidden=!provs.length;
     $('g-provs').innerHTML=provs.map(p=>`<div data-p="${esc(p.k)}" aria-pressed="${filtroProv===p.k}"><span>${esc(p.nombre)} <small>(${p.n} ${p.n===1?'factura':'facturas'})</small></span><b>${eur(p.t)}</b></div>`).join('');
     $('g-provs').querySelectorAll('[data-p]').forEach(d=>d.onclick=()=>{filtroProv=filtroProv===d.dataset.p?'':d.dataset.p;renderGastos();if(filtroProv)$('g-lista').scrollIntoView({behavior:'smooth',block:'start'})});
-    if(filtroProv)$('g-filtro').insertAdjacentHTML('afterbegin',`<button data-quitar-prov aria-pressed="true">${esc(porP[filtroProv].nombre)} ✕</button>`);
+    if(filtroProv)$('g-filtro').insertAdjacentHTML('afterbegin',`<button data-quitar-prov aria-pressed="true">${esc(porP[filtroProv]?porP[filtroProv].nombre:$('g-verprov').selectedOptions[0].textContent)} ✕</button>`);
     const qp=$('g-filtro').querySelector('[data-quitar-prov]');if(qp)qp.onclick=()=>{filtroProv='';renderGastos()};
     const f=g.filter(x=>!filtroProv||(claveProv(x.proveedor)||'_')===filtroProv).filter(x=>filtroCat==='todas'||(filtroCat==='pend'?!x.pagado:filtroCat==='genero'?esGenero(x):filtroCat==='general'?!esGenero(x):x.cat===filtroCat)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     $('g-sum').textContent=eur(sum(f,'total'));
